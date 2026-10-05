@@ -1,0 +1,14 @@
+{
+  "name": "game-sanh",
+  "version": "1.0.0",
+  "description": "Sảnh 2D nhiều người chơi + phòng Bầu Cua (xu ảo) - chạy mạng nội bộ",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "selfsigned": "^2.4.1",
+    "socket.io": "^4.8.1"
+  }
+}

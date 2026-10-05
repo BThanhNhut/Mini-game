@@ -1,0 +1,4 @@
+node_modules/
+# Chứng chỉ https tự tạo (có khóa bí mật), mỗi máy tự sinh khi chạy server
+cert/
+.DS_Store

@@ -1,0 +1,31 @@
+GAME SẢNH 2D - CHẠY MẠNG NỘI BỘ
+================================
+1) Cài Node.js (bản LTS) tại https://nodejs.org nếu máy chưa có.
+2) Mac: nhấp chuột phải vào "chay-tren-mac.command" > Open (lần đầu macOS sẽ hỏi).
+   Windows: nhấp đúp "chay-tren-windows.bat".
+   Hoặc mở Terminal trong thư mục này rồi gõ:  npm install  rồi  npm start
+3) Cửa sổ sẽ hiện 2 địa chỉ:
+     http://localhost:3000            -> mở trên chính máy chạy server
+     http://192.168.x.x:3000          -> máy khác / điện thoại cùng wifi mở địa chỉ này
+4) Nếu máy khác không vào được: tắt hoặc cho phép Node trong Firewall
+   (Mac: System Settings > Network > Firewall; macOS sẽ hỏi "Allow incoming connections" -> chọn Allow).
+
+NÓI CHUYỆN BẰNG MIC
+- Bấm nút "🎤 Bật mic" ở góc dưới bên phải. Người cùng phòng (cùng sảnh hoặc cùng bàn) sẽ nghe thấy bạn.
+- Ai đang bật mic có biểu tượng 🎤; ai đang nói thì mic sáng xanh. Không bật mic vẫn nghe được người khác.
+- Trình duyệt chỉ cho dùng mic khi mở bằng https. Máy chạy server dùng http://localhost:3000 là được,
+  còn máy khác / điện thoại hãy mở địa chỉ https://192.168.x.x:3443 (cửa sổ server có in sẵn).
+  Lần đầu sẽ có cảnh báo bảo mật: bấm "Nâng cao" (Advanced) > "Tiếp tục" (Proceed). Trên iPhone: "Hiện chi tiết" > "truy cập trang web này".
+- Đổi sang mạng wifi khác mà https không vào được thì xóa thư mục "cert" rồi chạy lại server để tạo chứng chỉ mới.
+
+Cách chơi: nhập tên, tạo nhân vật -> đi bằng WASD/mũi tên hoặc chạm vào màn hình -> đi tới cửa phòng -> bấm E hoặc nút "Vào phòng".
+
+Mỗi phòng là một bàn 6 ghế. Chạm vào ghế trống để ngồi. Người ngồi sớm nhất làm chủ bàn (cái, có biểu tượng 🏦).
+Game không giữ tiền của ai, chỉ chia bài / lắc xúc xắc và tính thắng thua so với cái để mọi người tự tính với nhau.
+- Bầu Cua: cái bấm Lắc, mọi người chọn mức rồi chạm con vật để ghi cược, cái bấm Mở bát.
+  Ra 1 con được bằng tiền cược, 2 con gấp 2, 3 con gấp 3, không ra thì mất cược. Dưới mỗi người có "Tổng" cộng dồn các ván.
+- Bài Cào: cái chia 3 lá, chạm từng lá để nặn, rồi bấm Lật bài. Nút = hàng đơn vị của tổng điểm (A=1, 10/J/Q/K=0), Ba Tây lớn nhất.
+- Xì Dách: cái chia 2 lá. Người chơi Rút thêm (tối đa 5 lá) hoặc Dằn khi đủ 16 điểm; cái cần 15 điểm mới được Lật cả bàn.
+  Xì Bàng > Xì Dách > Ngũ Linh > điểm thường. Quá 21 là Quắc.
+
+Chỉnh nhanh trong server.js: DOORS (thêm/sửa phòng), SEATS (số ghế mỗi bàn), CHIPS (các mức cược Bầu Cua).

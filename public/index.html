@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Game Sảnh</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- Màn hình nhập tên -->
+<div id="login" class="overlay">
+  <form id="loginForm" class="card">
+    <h1>🎮 Game Sảnh</h1>
+    <p>Nhập tên để vào chơi</p>
+    <input id="nameInput" maxlength="16" placeholder="Tên của bạn" autocomplete="off" autofocus>
+    <div id="avatarMaker">
+      <div class="mk-preview">
+        <canvas id="avatarPreview" width="120" height="140" title="Chạm để xoay nhân vật"></canvas>
+        <button type="button" id="randomLook">🎲 Ngẫu nhiên</button>
+      </div>
+      <div id="makerRows"></div>
+    </div>
+    <button type="submit">Vào game</button>
+  </form>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <span id="hudName"></span> · <span id="hudOnline">👥 0</span>
+</div>
+<div id="help" class="hidden">WASD / mũi tên hoặc chạm để đi · Enter để chat · E để vào phòng · 1-7 hành động · chạm ghế để ngồi</div>
+<button id="enterBtn" class="hidden"></button>
+<button id="micBtn" class="hidden">🎤 Bật mic</button>
+<div id="actionBar" class="hidden"></div>
+<button id="fsBtn" class="hidden" title="Toàn màn hình">⛶</button>
+
+<!-- Nhắc xoay ngang điện thoại -->
+<div id="rotateHint" class="overlay hidden">
+  <div class="card">
+    <div class="rot-icon">📱</div>
+    <h2>Xoay ngang điện thoại</h2>
+    <p id="rotateText">Game chơi đẹp nhất khi để ngang màn hình.</p>
+    <button id="rotateBtn">⛶ Toàn màn hình & xoay ngang</button>
+    <button id="rotateSkip" class="link-btn">Vẫn chơi màn hình dọc</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+
+<!-- Chat -->
+<div id="chat" class="hidden">
+  <div id="chatLog"></div>
+  <form id="chatForm"><input id="chatInput" maxlength="120" placeholder="Nhắn tin... (Enter)" autocomplete="off"></form>
+</div>
+
+<!-- Phòng chơi: bàn 6 ghế dùng chung cho Bầu Cua, Bài Cào, Xì Dách -->
+<div id="tableRoom" class="hidden">
+  <div class="bk-top">
+    <button id="tLeaveBtn">← Rời bàn</button>
+    <div id="tStatus"></div>
+    <div id="tHostBtns"></div>
+  </div>
+  <div id="bkTable">
+    <div class="bk-felt"><div id="tCenter"></div></div>
+    <div id="bkSeats"></div>
+  </div>
+  <div id="bkHandBar">
+    <div id="tPanel"></div>
+    <div id="bkWatchers"></div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="avatar.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
