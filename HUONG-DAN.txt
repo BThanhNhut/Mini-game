@@ -20,6 +20,9 @@ NÓI CHUYỆN BẰNG MIC
 
 Cách chơi: nhập tên, tạo nhân vật -> đi bằng WASD/mũi tên hoặc chạm vào màn hình -> đi tới cửa phòng -> bấm E hoặc nút "Vào phòng".
 
+Bản đồ: đi vào cổng sáng ở mép trái Sảnh để sang Quán Cafe Mèo (cổng mép phải quán để quay về).
+Ở quán có bàn, ghế, sofa và mèo; chạm vào mèo để vuốt. Ngồi chung bàn / chung ghế mới bật mic nói chuyện với nhau.
+
 Mỗi phòng là một bàn 6 ghế. Chạm vào ghế trống để ngồi. Người ngồi sớm nhất làm chủ bàn (cái, có biểu tượng 🏦).
 Game không giữ tiền của ai, chỉ chia bài / lắc xúc xắc và tính thắng thua so với cái để mọi người tự tính với nhau.
 - Bầu Cua: cái bấm Lắc, mọi người chọn mức rồi chạm con vật để ghi cược, cái bấm Mở bát.
@@ -27,5 +30,8 @@ Game không giữ tiền của ai, chỉ chia bài / lắc xúc xắc và tính 
 - Bài Cào: cái chia 3 lá, chạm từng lá để nặn, rồi bấm Lật bài. Nút = hàng đơn vị của tổng điểm (A=1, 10/J/Q/K=0), Ba Tây lớn nhất.
 - Xì Dách: cái chia 2 lá. Người chơi Rút thêm (tối đa 5 lá) hoặc Dằn khi đủ 16 điểm; cái cần 15 điểm mới được Lật cả bàn.
   Xì Bàng > Xì Dách > Ngũ Linh > điểm thường. Quá 21 là Quắc.
+- Tiến Lên (2-4 người, 13 lá): chạm lá để chọn rồi bấm Đánh hoặc Bỏ lượt. 3 < ... < A < 2; ♠ < ♣ < ♦ < ♥.
+  Rác, đôi, sám cô, tứ quý, sảnh, đôi thông. 3 đôi thông / tứ quý / 4 đôi thông chặt heo. Mỗi lượt 30 giây. Hết bài trước về nhất.
+- Cờ Caro (2 người, bàn 15x15): ai có 5 quân liền hàng trước thì thắng. Người khác vào phòng thì đứng xem.
 
 Chỉnh nhanh trong server.js: DOORS (thêm/sửa phòng), SEATS (số ghế mỗi bàn), CHIPS (các mức cược Bầu Cua).

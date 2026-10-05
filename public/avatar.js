@@ -32,17 +32,30 @@ function shade(hex, amt) {
 
 // dir: "down" | "up" | "left" | "right"; step: 0 đứng yên, 1/2 hai nhịp bước chân
 // pose: null | "sit" (ngồi ghế) | "wave" (giơ tay vẫy; step đổi nhịp vẫy)
+// look.costume === "kid": skin đặc biệt Kaito Kid (mũ chóp, kính một mắt, vest trắng, áo choàng)
 function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
   const L = normalizeLook(look);
+  const kid = !!(look && look.costume === "kid");
   const O = "#3b2416";
   const ox = fx - 10 * u, oy = fy - 28 * u;
   const sit = pose === "sit";
   let sh = sit ? 4 : 0; // ngồi thì hạ thân người xuống 4 ô
   const R = (col, c, r, w = 1, h = 1) => { ctx.fillStyle = col; ctx.fillRect(ox + c * u, oy + (r + sh) * u, w * u, h * u); };
   const B = (fill, c, r, w, h) => { R(O, c, r, w, h); R(fill, c + 1, r + 1, w - 2, h - 2); };
-  const skin = AV.SKIN[L.skin], hair = AV.HAIR[L.hairColor], shirt = AV.SHIRT[L.shirt], bot = AV.BOTTOM[L.bottomColor];
-  const hl = shade(hair, 0.3), skirt = L.bottom === 1, back = dir === "up";
+  let skin = AV.SKIN[L.skin], hair = AV.HAIR[L.hairColor], shirt = AV.SHIRT[L.shirt], bot = AV.BOTTOM[L.bottomColor];
+  let skirt = L.bottom === 1, shoe = "#4a3426";
+  if (kid) { skin = AV.SKIN[0]; hair = "#3d2a1e"; shirt = "#f5f6fa"; bot = "#f5f6fa"; skirt = false; shoe = "#dfe6e9"; }
+  const hl = shade(hair, 0.3), back = dir === "up";
   const e = dir === "left" ? -2 : dir === "right" ? 2 : 0;
+  const WHITE = "#f5f6fa", WSHADE = "#c8d1da";
+
+  // Áo choàng trắng của Kid (phía sau lưng)
+  const cape = () => {
+    if (back) { B(WHITE, 3, 13, 14, 13); R(WSHADE, 9, 14, 2, 11); R(WSHADE, 4, 24, 12, 1); return; }
+    const cx = dir === "right" ? 0 : dir === "left" ? 9 : 2, cw = dir === "down" ? 16 : 11;
+    B(WHITE, cx, 13, cw, 13); R(WSHADE, cx + cw - 3, 14, 2, 11); R(WSHADE, cx + 1, 24, cw - 2, 1);
+  };
+  if (kid && !back) cape();
 
   // Tóc dài / hai bím nằm sau lưng
   const backHair = () => {
@@ -52,7 +65,7 @@ function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
   if (!back) backHair();
 
   // Chân + giày (nhấc một chân khi bước)
-  const leg = (c, t) => { R(O, c, t, 5, 7); R(skirt ? skin : bot, c + 1, t, 3, 4); R("#4a3426", c + 1, t + 4, 3, 2); };
+  const leg = (c, t) => { R(O, c, t, 5, 7); R(skirt ? skin : bot, c + 1, t, 3, 4); R(shoe, c + 1, t + 4, 3, 2); };
   if (!sit) {
     leg(5, step === 1 ? 20 : 21);
     leg(10, step === 2 ? 20 : 21);
@@ -63,10 +76,15 @@ function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
   R(shade(shirt, 0.25), 8, 15, 4, 1); // cổ áo
   if (skirt) { B(bot, 4, 18, 12, 6); R(shade(bot, -0.2), 5, 22, 10, 1); }
   else { R(bot, 6, 19, 8, 3); R(shade(bot, -0.25), 6, 19, 8, 1); }
+  // Vest trắng của Kid: áo sơ mi xanh, cà vạt đỏ, ve áo
+  if (kid && !back) {
+    if (dir === "down") { R("#3867d6", 8, 15, 4, 4); R("#d63031", 9, 15, 2, 4); R(WSHADE, 7, 15, 1, 5); R(WSHADE, 12, 15, 1, 5); }
+    else { const tx = dir === "right" ? 11 : 6; R("#3867d6", tx, 15, 3, 3); R("#d63031", tx + 1, 15, 1, 3); }
+  }
   // Ngồi: đầu gối và giày thò ra phía trước
   if (sit) {
     const s0 = sh; sh = 0;
-    for (const c of [5, 10]) { R(O, c, 24, 5, 4); R(skirt ? skin : bot, c + 1, 24, 3, 1); R("#4a3426", c + 1, 25, 3, 2); }
+    for (const c of [5, 10]) { R(O, c, 24, 5, 4); R(skirt ? skin : bot, c + 1, 24, 3, 1); R(shoe, c + 1, 25, 3, 2); }
     sh = s0;
   }
 
@@ -76,14 +94,25 @@ function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
   if (dir === "left" || dir === "right") { B(shirt, 8, 15 + sw, 4, 6); R(skin, 9, 19 + sw, 2, 1); }
   else { arm(3, 15 + sw); if (pose !== "wave" || back) arm(14, 15 - sw); }
 
-  if (back) backHair();
+  if (back) { if (kid) cape(); else backHair(); }
 
   // Đầu
   R(O, 4, 2, 12, 13); R(O, 3, 3, 14, 11);
   R(skin, 5, 3, 10, 11); R(skin, 4, 4, 12, 9);
 
-  // Tóc
-  if (back) {
+  // Tóc (Kid: mũ chóp trắng có dải xanh, tóc nâu rối thò ra hai bên)
+  if (kid) {
+    if (back) { R(hair, 4, 3, 12, 9); R(shade(hair, 0.2), 6, 5, 3, 1); }
+    else {
+      R(hair, 4, 3, 2, 5); R(hair, 14, 3, 2, 5);
+      R(hair, 5, 3, 3, 2); R(hair, 9 + e, 3, 2, 2); R(hair, 12, 3, 3, 2); R(hair, 6, 5, 1, 1); R(hair, 13, 5, 1, 1);
+    }
+    const bx = dir === "right" ? 3 : dir === "left" ? 1 : 2;
+    R(O, bx, 1, 16, 3); R(WHITE, bx + 1, 2, 14, 1);               // vành mũ
+    R(O, 4, -7, 12, 9); R(WHITE, 5, -6, 10, 7);                  // thân mũ
+    R("#3867d6", 5, -1, 10, 2);                                  // dải xanh
+    R("#ffffff", 6, -5, 2, 4); R(WSHADE, 13, -6, 2, 5);          // sáng / tối
+  } else if (back) {
     if (L.hair === 4) {
       R("#4a2c17", 4, 5, 12, 7);
       R(O, 4, -1, 12, 1); R(O, 3, 0, 14, 6); R(hair, 4, 0, 12, 5); R(hl, 6, 1, 3, 1);
@@ -125,16 +154,24 @@ function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
     R("#fff", 6 + e, 8); R("#fff", 12 + e, 8);
     R("#ff9aa2", cl(5 + e), 11, 2, 1); R("#ff9aa2", cl(13 + e), 11, 2, 1);
     R("#8b3a2b", 9 + e, 12, 2, 1);
+    // Kính một mắt + dây đeo + cỏ bốn lá
+    if (kid) {
+      const mx = 5 + e;
+      R("#dfe6e9", mx, 7, 4, 1); R("#dfe6e9", mx, 11, 4, 1); R("#dfe6e9", mx, 8, 1, 3); R("#dfe6e9", mx + 3, 8, 1, 3);
+      R("rgba(200,230,255,.45)", mx + 1, 8, 2, 3);
+      R("#b2bec3", mx, 12, 1, 4); R("#00b894", mx - 1, 16, 2, 2);
+    }
   }
 }
 
 // Ảnh tĩnh của nhân vật (dùng cho ghế ở bàn bài), có cache theo ngoại hình
 const avatarCache = {};
 function avatarDataURL(look, u = 3, dir = "down") {
-  const key = JSON.stringify(normalizeLook(look)) + u + dir;
+  const key = JSON.stringify(normalizeLook(look)) + (look && look.costume) + u + dir;
   if (avatarCache[key]) return avatarCache[key];
+  // Cao 36 ô để vừa cả mũ chóp của skin Kid
   const c = document.createElement("canvas");
-  c.width = 22 * u; c.height = 32 * u;
-  drawAvatar(c.getContext("2d"), look, 11 * u, 31 * u, u, dir, 0);
+  c.width = 22 * u; c.height = 36 * u;
+  drawAvatar(c.getContext("2d"), look, 11 * u, 35 * u, u, dir, 0);
   return (avatarCache[key] = c.toDataURL());
 }

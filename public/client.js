@@ -12,6 +12,8 @@ let players = {}, counts = {};
 let room = "lobby";
 let scale = 1, offX = 0, offY = 0;
 let target = null, path = [], pendingEnter = null, pendingSit = false;
+let WORLDS = null;
+const inWorld = () => !!(WORLDS && WORLDS[room]); // đang ở bản đồ đi lại được (Sảnh, Cafe Mèo)
 const keys = {};
 
 // ===== Đăng nhập =====
@@ -57,17 +59,19 @@ setInterval(() => {
     g.clearRect(0, 0, c.width, c.height);
     g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(c.width / 2, c.height - 8, 34, 8, 0, 0, 7); g.fill();
     const step = [1, 0, 2, 0][Math.floor(performance.now() / 180) % 4];
-    drawAvatar(g, look, c.width / 2, c.height - 8 - (step ? 4 : 0), 4, ["down", "left", "up", "right"][previewDir], step);
+    drawAvatar(g, costume ? { ...look, costume } : look, c.width / 2, c.height - 8 - (step ? 4 : 0), 4, ["down", "left", "up", "right"][previewDir], step);
   }
 }, 60);
 $("loginForm").onsubmit = (e) => {
   e.preventDefault();
   const name = $("nameInput").value.trim();
   try { localStorage.setItem("name", name); localStorage.setItem("look", JSON.stringify(look)); } catch (e) {}
-  socket.emit("join", name, look, (res) => {
-    me = res.id; MAP = res.map; DOORS = res.doors; FACES = res.faces; RADIUS = res.radius; httpsPort = res.httpsPort; DECOR = res.decor;
+  if (Music.on) Music.start(); // bấm Vào game là thao tác của người dùng nên trình duyệt cho phát nhạc
+  Sfx.unlock();
+  socket.emit("join", name, look, { skinCode: costume ? skinCode : "" }, (res) => {
+    me = res.id; MAP = res.map; DOORS = res.doors; FACES = res.faces; RADIUS = res.radius; httpsPort = res.httpsPort; WORLDS = res.worlds;
     $("login").classList.add("hidden");
-    ["hud", "help", "chat", "micBtn", "actionBar"].forEach((id) => $(id).classList.remove("hidden"));
+    ["hud", "help", "chat", "actionBar"].forEach((id) => $(id).classList.remove("hidden"));
     checkOrientation();
     $("hudName").textContent = "👤 " + (name || "Bạn");
   });
@@ -85,7 +89,7 @@ socket.on("state", (data) => {
   }
   for (const id in players) if (!seen.has(id)) delete players[id];
   counts = data.counts;
-  $("hudOnline").textContent = "👥 " + (data.players.length + Object.values(counts).reduce((a, b) => a + b, 0));
+  $("hudOnline").textContent = "👥 " + data.online;
 });
 socket.on("toast", toast);
 socket.on("chat", (m) => {
@@ -100,16 +104,19 @@ socket.on("chat", (m) => {
   $("chatLog").scrollTop = 1e9;
 });
 socket.on("roomChanged", (r) => {
-  room = r; target = null; pendingEnter = null;
+  room = r; target = null; path = []; pendingEnter = null; players = {}; lastSent = "";
+  Music.setScene(r === "cafe" ? "cafe" : TABLE_GAMES.includes(r) ? "table" : "lobby"); // mỗi nơi một vòng hợp âm
+  // Hiệu ứng tối màn hình khi chuyển cảnh
+  $("fade").classList.add("on"); setTimeout(() => $("fade").classList.remove("on"), 60);
   const isTable = TABLE_GAMES.includes(r);
   $("tableRoom").classList.toggle("hidden", !isTable);
   document.body.classList.toggle("in-table", isTable);
-  lastT = null; lastRound = -1; deal.game = null;
+  lastT = null; lastRound = -1; deal.game = null; tlAnim.key = null; caroLast = null;
   $("tPanel").innerHTML = ""; $("tPanel").dataset.html = "";
   for (const id of ["tHostBtns", "tCenter", "bkSeats"]) { $(id).innerHTML = ""; $(id).dataset.html = ""; }
   $("tStatus").textContent = "";
   $("enterBtn").classList.add("hidden");
-  $("actionBar").classList.toggle("hidden", r !== "lobby");
+  $("actionBar").classList.toggle("hidden", !inWorld());
   pendingSit = false;
   $("chatLog").innerHTML = "";
 });
@@ -128,7 +135,7 @@ addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "e" && room === "lobby") { const d = currentDoor(); if (d) socket.emit("enter", d.id); }
   // Phím 1-7: các hành động trong sảnh
   const act = ACTIONS[+e.key - 1];
-  if (act && room === "lobby") doAction(act.id);
+  if (act && inWorld()) doAction(act.id);
 });
 addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
@@ -139,22 +146,32 @@ $("chatForm").onsubmit = (e) => {
   $("chatInput").value = ""; $("chatInput").blur();
 };
 canvas.addEventListener("pointerdown", (e) => {
-  if (!MAP || room !== "lobby") return;
+  if (!MAP || !inWorld()) return;
   $("chatInput").blur();
   const x = (e.clientX * devicePixelRatio - offX) / scale, y = (e.clientY * devicePixelRatio - offY) / scale;
-  const d = DOORS.find((d) => x > d.x && x < d.x + d.w && y > d.y && y < d.y + d.h);
+  const W = WORLDS[room];
+  // Chạm vào mèo: vuốt mèo (ở gần) hoặc đi tới chỗ mèo
+  if (room === "cafe") {
+    const ci = W.decor.cats.findIndex((c) => { const q = catPos(c, Date.now()); return Math.abs(x - q.x) < 30 && y > q.y - 40 - (c.perch || 0) && y < q.y + 8 - (c.perch || 0); });
+    if (ci >= 0) {
+      const q = catPos(W.decor.cats[ci], Date.now()), p = players[me];
+      if (p && Math.hypot(q.x - p.x, q.y - p.y) < 170) { socket.emit("pet", ci); return; }
+      pendingSit = false; pendingEnter = null; goTo(q.x, q.y + 30); return;
+    }
+  }
+  const d = room === "lobby" ? DOORS.find((d) => x > d.x && x < d.x + d.w && y > d.y && y < d.y + d.h) : null;
   pendingEnter = d ? d.id : null;
-  // Chạm vào ghế: đi tới trước ghế rồi ngồi xuống
-  const b = DECOR && DECOR.benches.find((b) => Math.abs(x - b.x) < 72 && y > b.y - 70 && y < b.y + 10);
-  pendingSit = !!b;
+  // Chạm vào chỗ ngồi: đi tới trước ghế rồi ngồi xuống
+  const si = W.seats.findIndex((st) => Math.abs(x - st.x) < 34 && y > st.y - 40 && y < st.y + 34);
+  pendingSit = si >= 0 ? si : false;
   if (d) goTo(d.x + d.w / 2, d.y + d.h / 2);
-  else if (b) goTo(b.x + (x < b.x ? -28 : 28), b.y + 14);
+  else if (si >= 0) goTo(W.seats[si].standX, W.seats[si].standY);
   else goTo(x, y);
 });
 $("enterBtn").onclick = () => { const d = currentDoor(); if (d) socket.emit("enter", d.id); };
 
 function currentDoor() {
-  const p = players[me]; if (!p) return null;
+  const p = players[me]; if (!p || room !== "lobby") return null;
   return DOORS.find((d) => p.x > d.x - 30 && p.x < d.x + d.w + 30 && p.y > d.y - 30 && p.y < d.y + d.h + 30);
 }
 
@@ -162,7 +179,7 @@ let lastSent = "";
 setInterval(() => {
   if (!me) return;
   let dx = 0, dy = 0;
-  if (room === "lobby" && !typing()) {
+  if (inWorld() && !typing()) {
     if (keys["a"] || keys["arrowleft"]) dx -= 1;
     if (keys["d"] || keys["arrowright"]) dx += 1;
     if (keys["w"] || keys["arrowup"]) dy -= 1;
@@ -171,6 +188,7 @@ setInterval(() => {
     else if (target && players[me]) {
       // Đi theo đường vòng đã tìm, tới điểm nào thì chuyển sang điểm kế tiếp
       const p = players[me];
+      checkStuck(p);
       while (path.length && Math.hypot(path[0].x - p.x, path[0].y - p.y) < 12) path.shift();
       const wp = path[0] || target;
       const vx = wp.x - p.x, vy = wp.y - p.y, dist = Math.hypot(vx, vy);
@@ -178,13 +196,13 @@ setInterval(() => {
       if (left < 8 || (!path.length && dist < 8)) { target = null; path = []; }
       else { dx = vx / dist; dy = vy / dist; }
       // Tới gần ghế thì ngồi luôn
-      if (pendingSit && left < 26) { pendingSit = false; target = null; path = []; dx = dy = 0; socket.emit("sit"); }
+      if (pendingSit !== false && left < 26) { socket.emit("sit", pendingSit); pendingSit = false; target = null; path = []; dx = dy = 0; }
     }
   }
   const s = dx.toFixed(2) + "," + dy.toFixed(2);
   if (s !== lastSent) { socket.emit("input", { dx, dy }); lastSent = s; }
 
-  if (room === "lobby") {
+  if (inWorld()) {
     const d = currentDoor();
     const btn = $("enterBtn");
     if (d) {
@@ -253,7 +271,6 @@ function drawDoor(d, near) {
 }
 
 // ===== Vẽ sảnh: nền, đài thác nước, cây, ghế =====
-let DECOR = null;
 // Vị trí cỏ / hoa cố định (tạo một lần bằng số ngẫu nhiên có hạt giống)
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -363,14 +380,15 @@ function drawPlayer(p, t) {
   if (p.emote !== p._emote) { p._emote = p.emote; p.emoteStart = Date.now() - (p.emoteAge || 0); }
   const age = p.emote ? Date.now() - p.emoteStart : 0;
   const x = p.rx, y = p.ry, sitting = p.pose === "sit";
-  const feet = y + RADIUS, top = feet - 90 + (sitting ? 12 : 0); // nhân vật cao 90px tính từ chân
+  const hat = p.look && p.look.costume === "kid" ? 21 : 0; // mũ chóp của skin Kid cao thêm 7 ô
+  const feet = y + RADIUS, top = feet - 90 + (sitting ? 12 : 0) - hat; // nhân vật cao 90px tính từ chân
   if (!sitting) { ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(x, feet, 22, 7, 0, 0, 7); ctx.fill(); }
   if (p.id === me && !sitting) { ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.beginPath(); ctx.ellipse(x, feet, 30, 10, 0, 0, 7); ctx.stroke(); }
   // Hướng nhìn + bước chân
   const vx = p.x - p.rx, vy = p.y - p.ry;
   const moving = !sitting && Math.abs(vx) + Math.abs(vy) > 0.5;
   if (moving) p.dir = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? "left" : "right") : (vy < 0 ? "up" : "down");
-  let dir = sitting ? "down" : p.dir || "down", step = moving ? [1, 0, 2, 0][Math.floor(t / 120) % 4] : 0, pose = sitting ? "sit" : null, lift = step ? 2 : 0;
+  let dir = sitting ? p.sitDir || "down" : p.dir || "down", step = moving ? [1, 0, 2, 0][Math.floor(t / 120) % 4] : 0, pose = sitting ? "sit" : null, lift = step ? 2 : 0;
   if (!moving && !sitting && p.emote === "dance") {
     dir = ["down", "left", "down", "right"][Math.floor(age / 380) % 4];
     step = [1, 2][Math.floor(age / 190) % 2];
@@ -450,22 +468,27 @@ function draw() {
   }
   ctx.setTransform(scale, 0, 0, scale, offX, offY);
 
-  drawGround();
-
-  // Tường phía trên + các cửa phòng
-  ctx.fillStyle = "#6d4c41"; ctx.fillRect(8, 8, MAP.w - 16, 262);
-  ctx.fillStyle = "#5d4037"; ctx.fillRect(8, 262, MAP.w - 16, 10);
-  const nd = currentDoor();
-  for (const d of DOORS) drawDoor(d, nd === d);
-
-  // Đài nước, cây, ghế và người chơi vẽ theo thứ tự từ xa tới gần
   const now = performance.now();
+  const world = WORLDS && WORLDS[room];
+  if (!world) return;
   const items = [];
-  if (DECOR) {
-    items.push({ y: DECOR.fountain.y, draw: () => drawFountain(DECOR.fountain, now) });
-    for (const t of DECOR.trees) items.push({ y: t.y, draw: () => drawTree(t, now) });
-    for (const b of DECOR.benches) items.push({ y: b.y - 30, draw: () => drawBench(b) });
+  if (room === "lobby") {
+    drawGround();
+    // Tường phía trên + các cửa phòng
+    ctx.fillStyle = "#6d4c41"; ctx.fillRect(8, 8, MAP.w - 16, 262);
+    ctx.fillStyle = "#5d4037"; ctx.fillRect(8, 262, MAP.w - 16, 10);
+    const nd = currentDoor();
+    for (const d of DOORS) drawDoor(d, nd === d);
+    // Đài nước, cây, ghế và người chơi vẽ theo thứ tự từ xa tới gần
+    const D = world.decor;
+    items.push({ y: D.fountain.y, draw: () => drawFountain(D.fountain, now) });
+    for (const t of D.trees) items.push({ y: t.y, draw: () => drawTree(t, now) });
+    for (const b of D.benches) items.push({ y: b.y - 30, draw: () => drawBench(b) });
+    addNpcItems(items, now); // người bán cá viên chiên, hamburger
+  } else if (room === "cafe") {
+    drawCafe(world, now, items);
   }
+  for (const g of world.portals) items.push({ y: (g.y1 + g.y2) / 2, draw: () => drawPortal(g, now) });
   for (const p of Object.values(players)) {
     p.rx += (p.x - p.rx) * 0.35; p.ry += (p.y - p.ry) * 0.35;
     items.push({ y: p.ry + RADIUS, draw: () => drawPlayer(p, now) });
@@ -476,10 +499,14 @@ function draw() {
 draw();
 
 // ===== Bàn chơi (Bầu Cua, Bài Cào, Xì Dách) =====
-const TABLE_GAMES = ["baucua", "baicao", "xidach"];
+const TABLE_GAMES = ["baucua", "baicao", "xidach", "tienlen", "caro"];
 const SUITS = ["♠", "♣", "♦", "♥"], RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 // Vị trí 6 ghế quanh bàn (% theo khung bàn); ghế của mình luôn ở dưới cùng
+// Vị trí 6 ghế quanh bàn (% theo khung bàn); ghế của mình luôn ở dưới cùng
 const SEAT_POS = [[50, 79], [14, 66], [14, 30], [50, 21], [86, 30], [86, 66]];
+// Bàn 4 ghế (Tiến Lên): mỗi bên 2 người, 2 phía trên và 2 phía dưới (mình ngồi dưới bên trái).
+// Thứ tự theo vòng: mình -> trên trái -> trên phải -> dưới phải
+const SEAT_POS4 = [[30, 80], [30, 20], [70, 20], [70, 80]];
 let lastT = null, peek = { round: -1, open: [] }, chip = 10, shakeUntil = 0, lastRound = -1;
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -498,12 +525,16 @@ const btn = (act, label, cls = "") => `<button data-act="${act}" class="${cls}">
 $("tLeaveBtn").onclick = () => socket.emit("leaveRoom");
 // Mọi nút trong bàn dùng chung một bộ xử lý
 $("tableRoom").addEventListener("click", (e) => {
-  const el = e.target.closest("[data-act],[data-sit],[data-bet],[data-chip],[data-peek]");
+  const el = e.target.closest("[data-act],[data-sit],[data-bet],[data-chip],[data-peek],[data-pick],[data-cell]");
   if (!el) return;
-  if (el.dataset.sit) socket.emit("sit", +el.dataset.sit);
+  if (el.dataset.pick) { tlSel.has(el.dataset.pick) ? tlSel.delete(el.dataset.pick) : tlSel.add(el.dataset.pick); renderTable(); }
+  else if (el.dataset.cell) socket.emit("act", "move", +el.dataset.cell);
+  else if (el.dataset.act === "play") socket.emit("act", "play", [...tlSel]);
+  else if (el.dataset.act === "clearsel") { tlSel.clear(); renderTable(); }
+  else if (el.dataset.sit) socket.emit("sit", +el.dataset.sit);
   else if (el.dataset.bet) socket.emit("act", "bet", { face: el.dataset.bet, amount: chip });
   else if (el.dataset.chip) { chip = +el.dataset.chip; renderTable(); }
-  else if (el.dataset.peek) { peek.open[+el.dataset.peek] = true; renderTable(); }
+  else if (el.dataset.peek) { if (!peek.open[+el.dataset.peek]) Sfx.flip(); peek.open[+el.dataset.peek] = true; renderTable(); }
   else if (el.dataset.act === "stand") socket.emit("stand");
   else socket.emit("act", el.dataset.act, el.dataset.arg !== undefined ? +el.dataset.arg : undefined);
 });
@@ -519,7 +550,8 @@ function renderTable() {
   const host = s.seats.find((x) => x && x.isHost);
   // Trạng thái chung
   let st;
-  if (s.mySeat < 0) st = "Chạm vào ghế trống để ngồi vào bàn";
+  if (G.fullStatus) st = G.fullStatus(s, seatedCount);
+  else if (s.mySeat < 0) st = seatedCount >= s.maxPlayers ? "Bàn đã đủ người, bạn đang đứng xem" : "Chạm vào ghế trống để ngồi vào bàn";
   else if (seatedCount < 2) st = "Đang chờ thêm người ngồi vào bàn...";
   else st = G.status(s, me, host ? host.name : "chủ bàn");
   trackDeal(s);
@@ -528,11 +560,16 @@ function renderTable() {
   setHtml($("tHostBtns"), s.isHost && !busy ? G.hostBtns(s).map((b) => btn(b.act, b.label, b.cls)).join("") : "");
   setHtml($("tCenter"), busy ? dealCenterHtml() : G.center(s));
   // Ghế quanh bàn
-  const base = s.mySeat >= 0 ? s.mySeat : 0;
-  setHtml($("bkSeats"), s.seats.map((x, i) => {
-    const [left, top] = SEAT_POS[(i - base + 6) % 6];
+  const nSeats = s.seats.length, base = s.mySeat >= 0 ? s.mySeat : 0;
+  const POS = nSeats === 4 ? SEAT_POS4 : SEAT_POS;
+  $("bkTable").classList.toggle("board", !!G.noSeats);
+  // Bàn đã đủ người (Tiến Lên 4, Caro 2) thì ẩn các ghế trống; Caro không vẽ ghế quanh bàn
+  const full = seatedCount >= s.maxPlayers;
+  setHtml($("bkSeats"), G.noSeats ? "" : s.seats.map((x, i) => {
+    let [left, top] = POS[(i - base + nSeats) % nSeats];
+    if (innerWidth < 500) left = Math.max(19, Math.min(81, left)); // màn hình hẹp: kéo ghế hai bên vào để bài không tràn ra ngoài
     const pos = `style="left:${left}%;top:${top}%"`;
-    if (!x) return `<div class="bk-seat" ${pos}><button class="bk-empty" data-sit="${i}">Ngồi</button></div>`;
+    if (!x) return full ? "" : `<div class="bk-seat" ${pos}><button class="bk-empty" data-sit="${i}">Ngồi</button></div>`;
     return `<div class="bk-seat${x.isMe ? " me" : ""}${x.isTurn ? " turn" : ""}" data-seat="${i}" ${pos}>` +
       (x.isTurn ? `<div class="bk-timer${turnLeft(s) <= 10 ? " low" : ""}">⏱ ${turnLeft(s)}s</div>` : "") +
       (x.bubble ? `<div class="bk-bubble">${esc(x.bubble)}</div>` : "") +
@@ -559,20 +596,22 @@ function seatCounts(s) {
   return c;
 }
 function trackDeal(s) {
-  if (s.game === "baucua") return;
+  if (s.game === "baucua" || s.game === "caro") return;
   const now = Date.now();
   // Vừa vào phòng: bài đã chia sẵn thì hiện luôn, không bay
   if (deal.game !== s.game) { deal = { game: s.game, round: s.round, counts: seatCounts(s), arrive: {}, start: 0, until: 0 }; return; }
   if (s.round !== deal.round) {
     // Ván mới: chia lần lượt từng lá theo vòng, bắt đầu từ người ngồi sau cái
     deal.round = s.round; deal.arrive = {};
+    if (s.seats.some((x) => x && x.hasCards)) Sfx.shuffle(); // tiếng xào bài
     const hostIdx = Math.max(0, s.seats.findIndex((x) => x && x.isHost));
     const order = [];
-    for (let k = 1; k <= 6; k++) { const i = (hostIdx + k) % 6; if (s.seats[i] && s.seats[i].hasCards) order.push(i); }
+    const n = s.seats.length;
+    for (let k = 1; k <= n; k++) { const i = (hostIdx + k) % n; if (s.seats[i] && s.seats[i].hasCards) order.push(i); }
     const maxN = Math.max(0, ...order.map((i) => s.seats[i].count));
     const steps = order.reduce((a, i) => a + s.seats[i].count, 0);
     // Giãn khoảng cách giữa các lá để cả lần chia kéo dài khoảng DEAL_TOTAL
-    const gap = Math.max(120, Math.min(600, (DEAL_TOTAL - SHUFFLE_MS - FLY_MS) / Math.max(1, steps - 1)));
+    const gap = Math.max(steps > 20 ? 25 : 120, Math.min(600, (DEAL_TOTAL - SHUFFLE_MS - FLY_MS) / Math.max(1, steps - 1)));
     let step = 0;
     for (let c = 0; c < maxN; c++) for (const i of order) {
       if (c >= s.seats[i].count) continue;
@@ -607,9 +646,10 @@ function flyCard(i, c, delay) {
   setTimeout(() => {
     const table = $("bkTable"), src = $("tCenter").querySelector(".pcard") || $("tCenter");
     const seat = $("bkSeats").querySelector(`[data-seat="${i}"] .bk-mini`);
-    const dst = seat && seat.children[c];
+    const dst = seat && (seat.children[c] || seat.lastElementChild); // Tiến Lên: bay vào xấp bài trước ghế
     if (!dst || room !== deal.game) return;
     const tb = table.getBoundingClientRect(), a = src.getBoundingClientRect(), b = dst.getBoundingClientRect();
+    Sfx.deal(); // tiếng "phạch" mỗi lá chia ra
     const el = document.createElement("div");
     el.className = "pcard sm fly";
     el.innerHTML = `<div class="front"></div><div class="backface"></div>`;
@@ -627,19 +667,152 @@ function seatCards(x, scoreText, i) {
   const n = x.count || 0;
   const mini = x.hasCards ? Array.from({ length: n }, (_, k) => cardHtml(x.revealed && x.cards ? x.cards[k] : null, x.revealed, "sm" + (isPending(i, k) ? " pending" : ""))).join("") : "";
   const cls = x.vsHost === "win" ? " win" : x.vsHost === "lose" ? " lose" : "";
-  return `<div class="bk-mini">${mini}</div>` + (scoreText ? `<div class="bk-score${cls}">${scoreText}</div>` : "");
+  return `<div class="bk-mini${n > 3 ? " many" : ""}">${mini}</div>` + (scoreText ? `<div class="bk-score${cls}">${scoreText}</div>` : "");
 }
 // Phần bài trên tay (thanh dưới): khung cố định để hiệu ứng lật bài chạy mượt
 function handFrame() {
   const panel = $("tPanel");
   if (!$("tHand")) {
     panel.innerHTML = `<div class="t-hint" id="tHint"></div><div class="bk-hand" id="tHand"></div><div class="bk-actions" id="tActions"></div>`;
+    panel.className = "panel-cards";
     panel.dataset.html = "";
   }
   return $("tHand");
 }
 
+let tlSel = new Set(); // các lá Tiến Lên đang chọn
+let caroLast = null;   // nước đi Caro gần nhất (để phát tiếng khi có nước mới)
+// ===== Hiệu ứng đánh bài (Tiến Lên): lá bay từ người đánh vào giữa bàn; chặt thì rung bàn =====
+const PLAY_MS = 450;
+const tlAnim = { key: null, until: 0 };
+function flyPlay(s) {
+  const cur = s.current; if (!cur) return;
+  const targets = [...$("tCenter").querySelectorAll(".tl-pile .pcard")];
+  // Mình đánh: bay từ tay; người khác: bay từ chỗ ngồi của họ
+  const srcEl = cur.seat === s.mySeat ? $("tHand") : $("bkSeats").querySelector(`[data-seat="${cur.seat}"] .bk-mini`) || $("bkSeats").querySelector(`[data-seat="${cur.seat}"]`);
+  if (!srcEl || !targets.length) return;
+  const a = srcEl.getBoundingClientRect();
+  cur.cards.forEach((c, k) => {
+    const b = targets[k].getBoundingClientRect();
+    const wrap = document.createElement("div");
+    wrap.innerHTML = cardHtml(c, true, "pile flyplay");
+    const el = wrap.firstChild;
+    const sx = a.left + a.width / 2 - b.width / 2 + (k - (cur.cards.length - 1) / 2) * 18, sy = a.top + a.height / 2 - b.height / 2;
+    el.style.left = sx + "px"; el.style.top = sy + "px"; el.style.width = b.width + "px"; el.style.height = b.height + "px";
+    el.style.transform = `rotate(${(k % 2 ? 1 : -1) * 25}deg) scale(1.15)`;
+    document.body.append(el);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.transitionDelay = k * 40 + "ms";
+      el.style.transform = `translate(${b.left - sx}px, ${b.top - sy}px) rotate(0deg) scale(1)`;
+    }));
+    setTimeout(() => el.remove(), PLAY_MS + k * 40 + 60);
+  });
+  setTimeout(() => (cur.chop ? Sfx.chop() : Sfx.play(cur.cards.length)), PLAY_MS * 0.8);
+  if (cur.chop) {
+    $("bkTable").classList.remove("shake"); void $("bkTable").offsetWidth; $("bkTable").classList.add("shake");
+    const boom = document.createElement("div");
+    boom.className = "chop-burst"; boom.textContent = "💥 CHẶT!";
+    $("bkTable").append(boom);
+    setTimeout(() => { boom.remove(); $("bkTable").classList.remove("shake"); }, 1100);
+  }
+}
 const GAMES = {
+  // ----- Tiến Lên: chọn lá rồi Đánh / Bỏ lượt, ai hết bài trước về nhất -----
+  tienlen: {
+    status(s, me, hostName) {
+      if (s.phase === "idle") return s.isHost ? "Bạn là chủ bàn, bấm Chia bài khi mọi người sẵn sàng (2-4 người)" : `Chờ ${hostName} chia bài...`;
+      if (s.phase === "end") return `🏆 ${s.winnerName} về nhất!` + (s.isHost ? " · bấm Ván mới để chơi tiếp" : "");
+      const left = turnLeft(s);
+      if (s.myTurn) return (s.lead ? "🔔 Tới lượt bạn: được đánh tự do" : "🔔 Tới lượt bạn: chặn hoặc bỏ lượt") + ` · còn ${left}s`;
+      return `Đang tới lượt ${s.turnName} · còn ${left}s`;
+    },
+    hostBtns: (s) => (s.phase === "play" ? [] : [{ act: "deal", label: s.phase === "end" ? "🎴 Ván mới" : "🎴 Chia bài" }]),
+    center(s) {
+      if (s.current) {
+        // Bài mới được đánh: chạy hiệu ứng bay vào giữa bàn, lá trên bàn ẩn tới khi bay xong
+        const key = s.round + ":" + s.current.seat + ":" + s.current.cards.map((c) => c.r + "-" + c.s).join();
+        if (key !== tlAnim.key) {
+          if (tlAnim.key !== null) { tlAnim.until = Date.now() + PLAY_MS; setTimeout(() => flyPlay(s), 0); setTimeout(renderTable, PLAY_MS + 30); }
+          tlAnim.key = key;
+        }
+        const hide = Date.now() < tlAnim.until ? " pending" : "";
+        const many = s.current.cards.length > 5 ? " many" : "";
+        return `<div class="tl-pile${many}">${s.current.cards.map((c) => cardHtml(c, true, "pile" + hide)).join("")}</div><span>${esc(s.current.by)} · ${s.current.label}</span>`;
+      }
+      tlAnim.key = ""; // bàn trống: lần đánh tiếp theo sẽ có hiệu ứng
+      if (s.phase === "play") return `${cardHtml(null, false, "sm")}<span>${esc(s.turnName)} được đánh tự do</span>`;
+      return deckHtml(s, "Tiến Lên");
+    },
+    seat(x, s) {
+      let label = "", cls = "";
+      if (s.phase === "end" && x.winner) { label = "🏆 Về nhất"; cls = " win"; }
+      else if (x.passed) { label = "Bỏ lượt"; cls = " lose"; }
+      else if (x.count) label = `${x.count} lá`;
+      const showAll = s.phase === "end" && x.cards && x.cards.length;
+      const cards = showAll ? x.cards.map((c) => cardHtml(c, true, "sm")).join("") : x.count ? cardHtml(null, false, "sm") : "";
+      return `<div class="bk-mini${showAll && x.cards.length > 3 ? " many tl-many" : ""}">${cards}</div>` + (label ? `<div class="bk-score${cls}">${label}</div>` : "");
+    },
+    panel(s, me) {
+      const hand = handFrame();
+      $("tHand").classList.add("tl");
+      const cards = me && me.cards ? me.cards : [];
+      const keys = cards.map((c) => `${c.r}-${c.s}`);
+      for (const k of [...tlSel]) if (!keys.includes(k)) tlSel.delete(k); // bỏ chọn lá đã đánh
+      if (hand.dataset.key !== keys.join()) {
+        hand.innerHTML = cards.map((c) => cardHtml(c, true).replace('class="pcard', `data-pick="${c.r}-${c.s}" class="pcard`)).join("");
+        hand.dataset.key = keys.join();
+      }
+      [...hand.children].forEach((el, k) => { el.classList.toggle("sel", tlSel.has(keys[k])); el.classList.toggle("pending", isPending(s.mySeat, k)); });
+      let hint;
+      if (!me) hint = s.mySeat < 0 ? "Bạn đang đứng xem." : "";
+      else if (s.phase !== "play") hint = cards.length ? `Bài còn lại: ${cards.length} lá` : "Chưa có bài";
+      else if (s.myTurn) hint = tlSel.size ? `Đã chọn ${tlSel.size} lá · bấm Đánh` : s.lead ? "Chạm vào lá bài để chọn, rồi bấm Đánh" : "Chọn bài lớn hơn để chặn, hoặc Bỏ lượt";
+      else hint = me.passed ? "Bạn đã bỏ lượt, chờ vòng sau" : "Chờ tới lượt · có thể chọn sẵn bài";
+      $("tHint").textContent = hint;
+      setHtml($("tActions"),
+        (s.myTurn ? btn("play", "🃏 Đánh", "go") + (s.lead ? "" : btn("pass", "Bỏ lượt", "warn")) : "") +
+        (tlSel.size ? btn("clearsel", "Bỏ chọn") : "") +
+        (me && s.phase !== "play" ? btn("stand", "Đứng dậy") : ""));
+    },
+  },
+
+  // ----- Cờ Caro: bàn 15x15, 5 quân liền hàng thắng -----
+  caro: {
+    noSeats: true,
+    fullStatus(s, seatedCount) {
+      if (s.phase === "play") return s.myTurn ? `🔔 Tới lượt bạn (${s.mySide === 1 ? "✕" : "◯"})` : `Đang tới lượt ${s.turnName}`;
+      if (s.phase === "end") return (s.draw ? "Hòa! Bàn cờ đã đầy" : `🏆 ${s.winnerName} thắng!`) + (s.isHost ? " · bấm Ván mới" : "");
+      if (seatedCount < 2) return s.mySeat >= 0 ? "Đang chờ người thứ hai vào chơi..." : "Bấm Vào chơi để đánh cờ";
+      return s.isHost ? "Đủ 2 người, bấm Bắt đầu" : "Chờ chủ bàn bắt đầu...";
+    },
+    hostBtns: (s) => (s.phase === "play" ? [] : [{ act: "start", label: s.phase === "end" ? "⭕ Ván mới" : "⭕ Bắt đầu" }]),
+    center(s) {
+      if (caroLast !== null && s.last !== caroLast && s.last >= 0) Sfx.stone(); // tiếng đặt quân
+      caroLast = s.last;
+      const win = new Set(s.winLine || []);
+      const canMove = s.myTurn;
+      const cells = s.board.map((v, i) => `<button class="cc${v === 1 ? " x" : v === 2 ? " o" : ""}${i === s.last ? " last" : ""}${win.has(i) ? " win" : ""}"${!v && canMove ? ` data-cell="${i}"` : ""}>${v === 1 ? "✕" : v === 2 ? "◯" : ""}</button>`).join("");
+      const head = s.xName ? `<div class="caro-head"><span class="x">✕ ${esc(s.xName)}</span><span>vs</span><span class="o">◯ ${esc(s.oName)}</span></div>` : `<div class="caro-head">Cờ Caro · 5 quân liền hàng thắng</div>`;
+      return head + `<div class="caro${canMove ? " my" : ""}" style="--n:${s.n}">${cells}</div>`;
+    },
+    seat: () => "",
+    panel(s, me) {
+      const panel = $("tPanel");
+      if (!$("tHint") || panel.className !== "panel-caro") {
+        panel.innerHTML = `<div class="t-hint" id="tHint"></div><div class="bk-actions" id="tActions"></div>`;
+        panel.className = "panel-caro"; panel.dataset.html = "";
+      }
+      const seated = s.seats.filter(Boolean).map((x) => x.name);
+      $("tHint").textContent = me
+        ? (s.mySide ? `Bạn cầm quân ${s.mySide === 1 ? "✕ (đi trước)" : "◯"}` : "Bạn đã ngồi vào bàn") + (seated.length > 1 ? ` · đối thủ: ${seated.filter((n) => n !== me.name).join(", ")}` : "")
+        : `Đang xem${seated.length ? ": " + seated.join(" vs ") : ""}`;
+      const free = s.seats.findIndex((x) => !x);
+      setHtml($("tActions"),
+        (!me && seated.length < 2 && free >= 0 ? `<button data-sit="${free}" class="go">🎮 Vào chơi</button>` : "") +
+        (me ? btn("stand", "Đứng dậy") : ""));
+    },
+  },
+
   // ----- Bài Cào: nặn từng lá rồi lật cho cả bàn -----
   baicao: {
     status(s, me, hostName) {
@@ -718,7 +891,7 @@ const GAMES = {
     },
     hostBtns: (s) => s.phase === "bet" ? [{ act: "open", label: "🥣 Mở bát", cls: "alt" }] : [{ act: "shake", label: "🎲 Lắc" }],
     center(s) {
-      if (s.round !== lastRound) { if (lastRound !== -1 && s.phase === "bet") shakeUntil = Date.now() + 1200; lastRound = s.round; }
+      if (s.round !== lastRound) { if (lastRound !== -1 && s.phase === "bet") { shakeUntil = Date.now() + 1200; Sfx.dice(); } lastRound = s.round; }
       const hist = s.history.length ? `<div class="t-history">Trước: ${s.history.slice(0, 4).map((h) => h.map((f) => FACE_INFO[f].emo).join("")).join(" · ")}</div>` : "";
       if (s.phase === "open") return `<div class="dice">${s.dice.map((f) => `<div class="die">${FACE_INFO[f].emo}</div>`).join("")}</div><span>Ván #${s.round}</span>${hist}`;
       const shaking = Date.now() < shakeUntil;
@@ -734,6 +907,7 @@ const GAMES = {
       const panel = $("tPanel");
       if (!$("tBoard")) {
         panel.innerHTML = `<div class="t-hint" id="tHint"></div><div class="bc-board" id="tBoard"></div><div class="bc-chips" id="tChips"></div>`;
+        panel.className = "panel-bc";
         panel.dataset.html = "";
       }
       const canBet = me && !s.isHost && s.phase === "bet";
@@ -757,7 +931,7 @@ const GAMES = {
   },
 };
 // Bộ đếm cho bát lắc (Bầu Cua), đồng hồ lượt (Xì Dách) và lúc đang chia bài
-setInterval(() => { if (lastT && lastT.game === room && (room === "baucua" || room === "xidach" || dealing())) renderTable(); }, 300);
+setInterval(() => { if (lastT && lastT.game === room && (room === "baucua" || room === "xidach" || room === "tienlen" || dealing())) renderTable(); }, 300);
 
 // ===== Mic: nói chuyện với người cùng phòng (WebRTC, mỗi người bật mic gửi tiếng thẳng tới từng người) =====
 const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
@@ -832,19 +1006,28 @@ $("micBtn").onclick = async () => {
     toast("Không mở được mic. Hãy cho phép trình duyệt dùng micro.");
     return;
   }
-  startMeter();
-  socket.emit("voice:mic", true);
-  updateMicBtn();
+  // Server xác nhận được bật mic ở đây (trong phòng game / đang ngồi ghế) thì mới bắt đầu gửi tiếng
+  socket.emit("voice:mic", true, (res) => {
+    if (res && res.ok) { startMeter(); updateMicBtn(); }
+    else { micStream.getTracks().forEach((t) => t.stop()); micStream = null; updateMicBtn(); toast((res && res.msg) || "Không bật được mic ở đây"); }
+  });
 };
-function stopMic() {
+// Nút mic chỉ hiện khi đang ở trong phòng game hoặc đang ngồi ghế ở sảnh
+socket.on("voice:can", (can) => {
+  $("micBtn").classList.toggle("hidden", !can);
+  if (!can && micStream) stopMic(true);
+});
+socket.on("voice:forceOff", (msg) => { if (micStream) { stopMic(true); toast("🔇 " + msg); } });
+function stopMic(fromServer) {
   Object.keys(pcOut).forEach(closeOut);
   micStream.getTracks().forEach((t) => t.stop());
   micStream = null;
   stopMeter();
-  socket.emit("voice:mic", false);
+  if (!fromServer) socket.emit("voice:mic", false);
   updateMicBtn();
 }
 function updateMicBtn() {
+  Music.duck(!!micStream); // đang bật mic thì nhạc nhỏ lại để mic không thu tiếng nhạc
   const b = $("micBtn");
   b.classList.toggle("on", !!micStream);
   b.textContent = micStream ? "🎙️ Tắt mic" : "🎤 Bật mic";
@@ -879,8 +1062,14 @@ const ACTIONS = [
   { id: "heart", icon: "❤️", name: "Thả tim" }, { id: "laugh", icon: "😂", name: "Cười" }, { id: "cry", icon: "😢", name: "Khóc" },
   { id: "sleep", icon: "💤", name: "Ngủ" },
 ];
-$("actionBar").innerHTML = ACTIONS.map((a, i) => `<button data-action="${a.id}" title="${a.name} (phím ${i + 1})"><span>${a.icon}</span><small>${a.name}</small></button>`).join("");
-$("actionBar").addEventListener("click", (e) => { const b = e.target.closest("[data-action]"); if (b) doAction(b.dataset.action); });
+$("actionBar").innerHTML = `<button id="actToggle" title="Hành động"><span>😊</span></button>` +
+  ACTIONS.map((a, i) => `<button data-action="${a.id}" title="${a.name} (phím ${i + 1})"><span>${a.icon}</span><small>${a.name}</small></button>`).join("");
+$("actionBar").addEventListener("click", (e) => {
+  // Điện thoại xoay ngang: thanh hành động thu gọn thành một nút, chạm để mở
+  if (e.target.closest("#actToggle")) return $("actionBar").classList.toggle("open");
+  const b = e.target.closest("[data-action]");
+  if (b) { doAction(b.dataset.action); $("actionBar").classList.remove("open"); }
+});
 function doAction(id) {
   if (id === "sit") socket.emit("sit");
   else socket.emit("emote", id);
@@ -922,11 +1111,14 @@ document.addEventListener("fullscreenchange", checkOrientation);
 
 // ===== Tìm đường vòng qua đài nước, cây, ghế (giống luật chặn ở server) =====
 function blockedAt(x, y) {
-  if (!DECOR) return false;
-  const fy = y + RADIUS, f = DECOR.fountain;
-  if (((x - f.x) / (f.rx + 20)) ** 2 + ((fy - f.y) / (f.ry + 18)) ** 2 < 1) return true;
-  for (const t of DECOR.trees) if (Math.hypot(x - t.x, (fy - t.y) * 1.8) < 26) return true;
-  for (const b of DECOR.benches) if (Math.abs(x - b.x) < 64 && fy > b.y - 18 && fy < b.y + 6) return true;
+  const W = WORLDS && WORLDS[room];
+  if (!W) return false;
+  const fy = y + RADIUS;
+  for (const o of W.obstacles) {
+    if (o.type === "ellipse" && ((x - o.x) / o.rx) ** 2 + ((fy - o.y) / o.ry) ** 2 < 1) return true;
+    if (o.type === "tree" && Math.hypot(x - o.x, (fy - o.y) * 1.8) < 26) return true;
+    if (o.type === "rect" && x > o.x1 && x < o.x2 && fy > o.y1 && fy < o.y2) return true;
+  }
   return false;
 }
 const CELL = 20;
@@ -992,5 +1184,80 @@ function findPath(from, to) {
 function goTo(x, y) {
   target = { x, y };
   const p = players[me];
-  path = p ? findPath({ x: p.x, y: p.y }, target) : [];
+  if (!p) { path = []; return; }
+  let from = { x: p.x, y: p.y };
+  // Đang ngồi thì server sẽ cho đứng dậy ra trước ghế: tính đường từ chỗ đó
+  if (p.pose === "sit" && WORLDS[room]) {
+    const st = WORLDS[room].seats.reduce((a, c) => (Math.hypot(c.x - p.x, c.y - p.y) < Math.hypot(a.x - p.x, a.y - p.y) ? c : a));
+    from = { x: st.standX, y: st.standY };
+  }
+  path = findPath(from, target);
+  stuck = { x: p.x, y: p.y, since: Date.now() };
 }
+// Bị kẹt (không nhúc nhích ~0,6 giây) thì tìm đường lại từ chỗ đang đứng
+let stuck = null;
+function checkStuck(p) {
+  if (!stuck || p.pose === "sit") return;
+  if (Math.hypot(p.x - stuck.x, p.y - stuck.y) > 4) { stuck = { x: p.x, y: p.y, since: Date.now() }; return; }
+  if (Date.now() - stuck.since > 600) {
+    path = findPath({ x: p.x, y: p.y }, target);
+    stuck = { x: p.x, y: p.y, since: Date.now() };
+  }
+}
+
+// ===== Mã skin admin (Kaito Kid): server kiểm tra mã, giao diện chỉ hiển thị =====
+let costume = null, skinCode = "";
+function setCostume(c) {
+  costume = c;
+  $("skinActive").classList.toggle("hidden", !c);
+  $("skinToggle").classList.toggle("hidden", !!c);
+  $("skinForm").classList.add("hidden");
+  $("makerRows").classList.toggle("locked", !!c);
+  $("randomLook").classList.toggle("hidden", !!c);
+}
+function applySkin(code, silent) {
+  socket.emit("skin:check", code, (res) => {
+    if (res && res.ok) {
+      skinCode = code;
+      try { localStorage.setItem("skinCode", code); } catch (e) {}
+      setCostume(res.costume);
+      if (!silent) toast("🎩 Đã áp dụng skin Kaito Kid!");
+    } else {
+      try { localStorage.removeItem("skinCode"); } catch (e) {}
+      if (!silent) toast((res && res.msg) || "Mã skin không đúng");
+    }
+  });
+}
+$("skinToggle").onclick = () => { $("skinForm").classList.toggle("hidden"); $("skinInput").focus(); };
+$("skinApply").onclick = () => { const c = $("skinInput").value.trim(); if (c) applySkin(c); };
+$("skinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("skinApply").click(); } });
+$("skinRemove").onclick = () => {
+  skinCode = "";
+  try { localStorage.removeItem("skinCode"); } catch (e) {}
+  setCostume(null);
+};
+// Đã từng nhập đúng mã trên máy này thì tự áp dụng lại
+try { const saved = localStorage.getItem("skinCode"); if (saved) socket.once("connect", () => applySkin(saved, true)); } catch (e) {}
+
+// ===== Nhạc nền =====
+function updateMusicBtn() {
+  $("musicBtn").textContent = Music.on ? "🎵" : "🔇"; $("musicBtn").classList.toggle("off", !Music.on);
+  const t = document.querySelector('.t-sound[data-sound="music"]'); t.textContent = $("musicBtn").textContent; t.classList.toggle("off", !Music.on);
+}
+$("musicBtn").onclick = () => { Music.toggle(); updateMusicBtn(); };
+$("musicVol").value = Music.volume;
+$("musicVol").oninput = (e) => { Music.setVolume(+e.target.value); if (!Music.on) { Music.toggle(); updateMusicBtn(); } };
+updateMusicBtn();
+
+// ===== Âm thanh chia bài / đánh bài =====
+function updateSfxBtn() {
+  $("sfxBtn").textContent = Sfx.on ? "🔊" : "🔈"; $("sfxBtn").classList.toggle("off", !Sfx.on);
+  const t = document.querySelector('.t-sound[data-sound="sfx"]'); t.textContent = $("sfxBtn").textContent; t.classList.toggle("off", !Sfx.on);
+}
+// Nút nhạc / âm thanh trên thanh trên cùng của bàn chơi (thanh trạng thái ở sảnh bị bàn che)
+document.querySelectorAll(".t-sound").forEach((b) => b.addEventListener("click", (e) => {
+  e.stopPropagation();
+  (b.dataset.sound === "music" ? $("musicBtn") : $("sfxBtn")).click();
+}));
+$("sfxBtn").onclick = () => { Sfx.toggle(); updateSfxBtn(); if (Sfx.on) Sfx.flip(); };
+updateSfxBtn();

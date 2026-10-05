@@ -4,10 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Game Sảnh</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="fade"></div>
 
 <!-- Màn hình nhập tên -->
 <div id="login" class="overlay">
@@ -17,10 +19,18 @@
     <input id="nameInput" maxlength="16" placeholder="Tên của bạn" autocomplete="off" autofocus>
     <div id="avatarMaker">
       <div class="mk-preview">
-        <canvas id="avatarPreview" width="120" height="140" title="Chạm để xoay nhân vật"></canvas>
+        <canvas id="avatarPreview" width="120" height="160" title="Chạm để xoay nhân vật"></canvas>
         <button type="button" id="randomLook">🎲 Ngẫu nhiên</button>
       </div>
       <div id="makerRows"></div>
+    </div>
+    <div id="skinBox">
+      <button type="button" id="skinToggle" class="link-btn">🎩 Có mã skin?</button>
+      <div id="skinForm" class="hidden">
+        <input id="skinInput" placeholder="Nhập mã skin" autocomplete="off" autocapitalize="characters">
+        <button type="button" id="skinApply">Áp dụng</button>
+      </div>
+      <div id="skinActive" class="hidden">🎩 Đang dùng skin <b>Kaito Kid</b> · <button type="button" id="skinRemove" class="link-btn">Bỏ skin</button></div>
     </div>
     <button type="submit">Vào game</button>
   </form>
@@ -29,8 +39,9 @@
 <!-- HUD -->
 <div id="hud" class="hidden">
   <span id="hudName"></span> · <span id="hudOnline">👥 0</span>
+  <button id="musicBtn" title="Bật / tắt nhạc nền">🎵</button><input id="musicVol" type="range" min="0" max="1" step="0.05" title="Âm lượng nhạc"><button id="sfxBtn" title="Bật / tắt âm thanh chia bài, đánh bài">🔊</button>
 </div>
-<div id="help" class="hidden">WASD / mũi tên hoặc chạm để đi · Enter để chat · E để vào phòng · 1-7 hành động · chạm ghế để ngồi</div>
+<div id="help" class="hidden">WASD / mũi tên hoặc chạm để đi · Enter để chat · E để vào phòng · 1-7 hành động · ngồi ghế hoặc vào phòng để bật mic</div>
 <button id="enterBtn" class="hidden"></button>
 <button id="micBtn" class="hidden">🎤 Bật mic</button>
 <div id="actionBar" class="hidden"></div>
@@ -58,11 +69,13 @@
 <div id="tableRoom" class="hidden">
   <div class="bk-top">
     <button id="tLeaveBtn">← Rời bàn</button>
+    <button class="t-sound" data-sound="music" title="Nhạc nền">🎵</button><button class="t-sound" data-sound="sfx" title="Âm thanh chia bài, đánh bài">🔊</button>
     <div id="tStatus"></div>
     <div id="tHostBtns"></div>
   </div>
   <div id="bkTable">
-    <div class="bk-felt"><div id="tCenter"></div></div>
+    <div class="bk-felt"></div>
+    <div id="tCenter"></div>
     <div id="bkSeats"></div>
   </div>
   <div id="bkHandBar">
@@ -73,6 +86,10 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="avatar.js"></script>
+<script src="music.js"></script>
+<script src="sfx.js"></script>
 <script src="client.js"></script>
+<script src="cafe.js"></script>
+<script src="npc.js"></script>
 </body>
 </html>
