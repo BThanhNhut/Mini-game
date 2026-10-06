@@ -35,3 +35,11 @@ Game không giữ tiền của ai, chỉ chia bài / lắc xúc xắc và tính 
 - Cờ Caro (2 người, bàn 15x15): ai có 5 quân liền hàng trước thì thắng. Người khác vào phòng thì đứng xem.
 
 Chỉnh nhanh trong server.js: DOORS (thêm/sửa phòng), SEATS (số ghế mỗi bàn), CHIPS (các mức cược Bầu Cua).
+
+CHAT VỚI ZORO (AI, miễn phí)
+- Vào https://aistudio.google.com, đăng nhập Google, bấm "Get API key" > "Create API key", rồi copy key.
+- Tạo file gemini-key.txt cạnh server.js, dán key vào (chỉ một dòng), rồi chạy lại server.
+  Cửa sổ server in "Zoro chat bằng AI: BẬT" là được.
+- Lên Tàu Hải Tặc, gõ chat có chữ "Zoro" (hoặc chat bất kỳ khi đứng gần Zoro ở cột buồm), Zoro sẽ chat lại trong khung chat.
+- Gói miễn phí có giới hạn số câu mỗi phút / mỗi ngày; hết lượt thì Zoro chỉ "Zzz...", lát sau lại chat được.
+- Không đưa file gemini-key.txt cho người khác.

@@ -45,6 +45,10 @@ function drawAvatar(ctx, look, fx, fy, u, dir = "down", step = 0, pose = null) {
   let skin = AV.SKIN[L.skin], hair = AV.HAIR[L.hairColor], shirt = AV.SHIRT[L.shirt], bot = AV.BOTTOM[L.bottomColor];
   let skirt = L.bottom === 1, shoe = "#4a3426";
   if (kid) { skin = AV.SKIN[0]; hair = "#3d2a1e"; shirt = "#f5f6fa"; bot = "#f5f6fa"; skirt = false; shoe = "#dfe6e9"; }
+  // NPC có thể đặt màu riêng ngoài bảng màu (vd. tóc xanh lá, tóc cam)
+  if (look && look.hairHex) hair = look.hairHex;
+  if (look && look.shirtHex) shirt = look.shirtHex;
+  if (look && look.botHex) bot = look.botHex;
   const hl = shade(hair, 0.3), back = dir === "up";
   const e = dir === "left" ? -2 : dir === "right" ? 2 : 0;
   const WHITE = "#f5f6fa", WSHADE = "#c8d1da";

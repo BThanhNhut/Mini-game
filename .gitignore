@@ -3,3 +3,7 @@ node_modules/
 cert/
 .DS_Store
 admin-code.txt
+stats.json
+gemini-key.txt
+zoro-biet.txt
+zoro-nho.json

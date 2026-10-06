@@ -1,6 +1,7 @@
 const socket = io();
 const $ = (id) => document.getElementById(id);
-const canvas = $("game"), ctx = canvas.getContext("2d");
+const canvas = $("game");
+let ctx = canvas.getContext("2d"); // "let" để bảng chọn mèo mượn tạm vẽ hình xem trước
 
 const FACE_INFO = {
   bau: { emo: "🎃", nm: "Bầu" }, cua: { emo: "🦀", nm: "Cua" }, tom: { emo: "🦐", nm: "Tôm" },
@@ -11,7 +12,7 @@ let me = null, MAP = null, DOORS = [], FACES = [], RADIUS = 18;
 let players = {}, counts = {};
 let room = "lobby";
 let scale = 1, offX = 0, offY = 0;
-let target = null, path = [], pendingEnter = null, pendingSit = false;
+let target = null, path = [], pendingEnter = null, pendingSit = false, pendingAdopt = false, pendingBoard = false;
 let WORLDS = null;
 const inWorld = () => !!(WORLDS && WORLDS[room]); // đang ở bản đồ đi lại được (Sảnh, Cafe Mèo)
 const keys = {};
@@ -68,7 +69,9 @@ $("loginForm").onsubmit = (e) => {
   try { localStorage.setItem("name", name); localStorage.setItem("look", JSON.stringify(look)); } catch (e) {}
   if (Music.on) Music.start(); // bấm Vào game là thao tác của người dùng nên trình duyệt cho phát nhạc
   Sfx.unlock();
-  socket.emit("join", name, look, { skinCode: costume ? skinCode : "" }, (res) => {
+  let pet = null; try { pet = localStorage.getItem("pet"); } catch (e) {}
+  socket.emit("join", name, look, { skinCode: costume ? skinCode : "", pet }, (res) => {
+    leaderboard = res.stats || [];
     me = res.id; MAP = res.map; DOORS = res.doors; FACES = res.faces; RADIUS = res.radius; httpsPort = res.httpsPort; WORLDS = res.worlds;
     $("login").classList.add("hidden");
     ["hud", "help", "chat", "actionBar"].forEach((id) => $(id).classList.remove("hidden"));
@@ -93,6 +96,7 @@ socket.on("state", (data) => {
 });
 socket.on("toast", toast);
 socket.on("chat", (m) => {
+  if (m.npc === "zoro") Object.assign(zoroSay, { text: m.text, until: Date.now() + 7000 }); // Zoro (AI) trả lời: hiện bong bóng trên đầu
   const div = document.createElement("div");
   if (m.system) { div.className = "sys"; div.textContent = m.text; }
   else {
@@ -150,6 +154,20 @@ canvas.addEventListener("pointerdown", (e) => {
   $("chatInput").blur();
   const x = (e.clientX * devicePixelRatio - offX) / scale, y = (e.clientY * devicePixelRatio - offY) / scale;
   const W = WORLDS[room];
+  // Chạm vào thuyền: đi tới chỗ lên thuyền rồi lên
+  const boat = room === "beach" ? W.decor.boat : room === "ship" ? W.decor.dinghy : null; // có thể chưa có nếu server cũ
+  if (boat && Math.abs(x - boat.x) < 75 && y > boat.y - 100 && y < boat.y + 30) {
+    pendingSit = false; pendingEnter = null;
+    if (nearDock()) { socket.emit("board"); return; }
+    pendingBoard = true; goTo(boat.dock.x, boat.dock.y); return;
+  }
+  // Chạm vào Trạm cứu hộ mèo: mở bảng chọn mèo (đứng gần) hoặc đi tới trạm
+  const ad = room === "cafe" && W.decor.adopter;
+  if (ad && Math.abs(x - (ad.x + 5)) < 80 && y > ad.y - 175 && y < ad.y + 10) {
+    pendingSit = false; pendingEnter = null;
+    if (nearAdopter()) { openAdopt(); return; }
+    pendingAdopt = true; goTo(ad.x, ad.y + 40); return;
+  }
   // Chạm vào mèo: vuốt mèo (ở gần) hoặc đi tới chỗ mèo
   if (room === "cafe") {
     const ci = W.decor.cats.findIndex((c) => { const q = catPos(c, Date.now()); return Math.abs(x - q.x) < 30 && y > q.y - 40 - (c.perch || 0) && y < q.y + 8 - (c.perch || 0); });
@@ -159,6 +177,8 @@ canvas.addEventListener("pointerdown", (e) => {
       pendingSit = false; pendingEnter = null; goTo(q.x, q.y + 30); return;
     }
   }
+  const bd = room === "lobby" && W.decor.board;
+  if (bd && Math.abs(x - bd.x) < 66 && y > bd.y - 130 && y < bd.y + 8) { openLeaderboard(); return; }
   const d = room === "lobby" ? DOORS.find((d) => x > d.x && x < d.x + d.w && y > d.y && y < d.y + d.h) : null;
   pendingEnter = d ? d.id : null;
   // Chạm vào chỗ ngồi: đi tới trước ghế rồi ngồi xuống
@@ -168,7 +188,11 @@ canvas.addEventListener("pointerdown", (e) => {
   else if (si >= 0) goTo(W.seats[si].standX, W.seats[si].standY);
   else goTo(x, y);
 });
-$("enterBtn").onclick = () => { const d = currentDoor(); if (d) socket.emit("enter", d.id); };
+$("enterBtn").onclick = () => {
+  if ($("enterBtn").dataset.board) return socket.emit("board");
+  if ($("enterBtn").dataset.adopt) return openAdopt();
+  const d = currentDoor(); if (d) socket.emit("enter", d.id);
+};
 
 function currentDoor() {
   const p = players[me]; if (!p || room !== "lobby") return null;
@@ -184,7 +208,7 @@ setInterval(() => {
     if (keys["d"] || keys["arrowright"]) dx += 1;
     if (keys["w"] || keys["arrowup"]) dy -= 1;
     if (keys["s"] || keys["arrowdown"]) dy += 1;
-    if (dx || dy) { target = null; path = []; pendingEnter = null; pendingSit = false; }
+    if (dx || dy) { target = null; path = []; pendingEnter = null; pendingSit = false; pendingAdopt = false; pendingBoard = false; }
     else if (target && players[me]) {
       // Đi theo đường vòng đã tìm, tới điểm nào thì chuyển sang điểm kế tiếp
       const p = players[me];
@@ -205,7 +229,19 @@ setInterval(() => {
   if (inWorld()) {
     const d = currentDoor();
     const btn = $("enterBtn");
-    if (d) {
+    const dock = !d && nearDock();
+    btn.dataset.board = dock ? "1" : "";
+    if (dock && pendingBoard) { pendingBoard = false; socket.emit("board"); }
+    const shelter = !d && !dock && nearAdopter();
+    btn.dataset.adopt = shelter ? "1" : "";
+    if (shelter && pendingAdopt) { pendingAdopt = false; openAdopt(); }
+    if (dock) {
+      btn.textContent = room === "beach" ? "⛵ Lên thuyền ra Tàu Hải Tặc" : "⛵ Lên thuyền về bãi biển";
+      btn.classList.remove("hidden");
+    } else if (shelter) {
+      btn.textContent = players[me] && players[me].pet ? "🐱 Đổi bé mèo khác" : "🐱 Nhận nuôi mèo";
+      btn.classList.remove("hidden");
+    } else if (d) {
       btn.textContent = d.open ? `Vào phòng ${d.icon} ${d.name}` : `${d.icon} ${d.name} (sắp ra mắt)`;
       btn.classList.remove("hidden");
       if (pendingEnter === d.id && d.open) { pendingEnter = null; socket.emit("enter", d.id); }
@@ -397,6 +433,8 @@ function drawPlayer(p, t) {
   if (!moving && p.emote === "wave") { pose = sitting ? "sit" : "wave"; if (!sitting) step = Math.floor(age / 180) % 2; }
   drawAvatar(ctx, p.look, x, feet - lift, 3, dir, sitting ? 0 : step, pose);
 
+  // Vương miện của người vừa trả lời đúng đố vui
+  if (p.crown) { ctx.font = "22px system-ui"; ctx.textAlign = "center"; ctx.fillText("👑", x, top - 24 + Math.sin(t / 300) * 2); }
   // Tên + mic
   ctx.font = "bold 15px system-ui"; ctx.textAlign = "center";
   ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.7)"; ctx.strokeText(p.name, x, top - 6);
@@ -485,13 +523,21 @@ function draw() {
     for (const t of D.trees) items.push({ y: t.y, draw: () => drawTree(t, now) });
     for (const b of D.benches) items.push({ y: b.y - 30, draw: () => drawBench(b) });
     addNpcItems(items, now); // người bán cá viên chiên, hamburger
+    items.push({ y: D.board.y, draw: () => drawLeaderboard(D.board) });
   } else if (room === "cafe") {
     drawCafe(world, now, items);
+  } else if (room === "beach") {
+    drawBeach(world, now, items);
+  } else if (room === "ship") {
+    // Tàu lắc lư nhẹ như đang lênh đênh trên biển
+    ctx.translate(MAP.w / 2, MAP.h / 2); ctx.rotate(Math.sin(now / 1800) * 0.012); ctx.translate(-MAP.w / 2, -MAP.h / 2);
+    drawShip(world, now, items);
   }
   for (const g of world.portals) items.push({ y: (g.y1 + g.y2) / 2, draw: () => drawPortal(g, now) });
   for (const p of Object.values(players)) {
     p.rx += (p.x - p.rx) * 0.35; p.ry += (p.y - p.ry) * 0.35;
     items.push({ y: p.ry + RADIUS, draw: () => drawPlayer(p, now) });
+    if (p.pet) addPetItem(p, items, now);
   }
   items.sort((a, b) => a.y - b.y).forEach((it) => it.draw());
   if (target) { ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(target.x, target.y, 10, 0, 7); ctx.stroke(); }
@@ -1261,3 +1307,99 @@ document.querySelectorAll(".t-sound").forEach((b) => b.addEventListener("click",
 }));
 $("sfxBtn").onclick = () => { Sfx.toggle(); updateSfxBtn(); if (Sfx.on) Sfx.flip(); };
 updateSfxBtn();
+
+// ===== Câu nói nhanh: bấm 💬 rồi chọn câu, gửi luôn (hiện bong bóng trên đầu) =====
+const QUICK_LINES = {
+  world: ["Xin chào mọi người! 👋", "Vào chơi bài không? 🃏", "Đi cafe mèo không? ☕", "Đợi mình xíu nha ⏳", "Haha 😂", "Bye bye 👋"],
+  table: ["Ăn may thôi! 😎", "Đánh lẹ lên! ⏰", "Chặt nè 😏", "Thua rồi 😭", "Hay quá! 👏", "Bài xấu quá 😩", "Ván nữa nha! 🔁", "GG 🤝"],
+};
+$("quickBtn").onclick = () => {
+  const lines = TABLE_GAMES.includes(room) ? QUICK_LINES.table : QUICK_LINES.world;
+  $("quickMenu").innerHTML = lines.map((l) => `<button type="button" data-line="${l}">${l}</button>`).join("");
+  $("quickMenu").classList.toggle("hidden");
+};
+$("quickMenu").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-line]");
+  if (!b) return;
+  socket.emit("chat", b.dataset.line);
+  $("quickMenu").classList.add("hidden");
+});
+
+// ===== Bảng thành tích =====
+let leaderboard = [];
+socket.on("stats", (list) => { leaderboard = list; if (!$("lbModal").classList.contains("hidden")) openLeaderboard(); });
+function drawLeaderboard(b) {
+  const { x, y } = b;
+  ctx.fillStyle = "rgba(0,0,0,.2)"; ctx.beginPath(); ctx.ellipse(x, y, 66, 10, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#5d4037"; ctx.fillRect(x - 52, y - 60, 8, 60); ctx.fillRect(x + 44, y - 60, 8, 60);
+  ctx.fillStyle = "#8d6e63"; roundRect(x - 64, y - 132, 128, 80, 8); ctx.fill();
+  ctx.fillStyle = "#3e2723"; roundRect(x - 58, y - 126, 116, 68, 6); ctx.fill();
+  ctx.textAlign = "center"; ctx.fillStyle = "#f9ca24"; ctx.font = "bold 13px system-ui"; ctx.fillText("🏆 BẢNG VÀNG", x, y - 110);
+  ctx.font = "11px system-ui"; ctx.textAlign = "left";
+  const medal = ["🥇", "🥈", "🥉"];
+  if (!leaderboard.length) { ctx.fillStyle = "#dfe6e9"; ctx.textAlign = "center"; ctx.fillText("Chưa có ai ghi điểm", x, y - 84); }
+  leaderboard.slice(0, 3).forEach((r, i) => {
+    const name = r.name.length > 10 ? r.name.slice(0, 10) + "…" : r.name;
+    ctx.fillStyle = "#fff"; ctx.fillText(`${medal[i]} ${name}`, x - 52, y - 92 + i * 15);
+    ctx.textAlign = "right"; ctx.fillStyle = "#f9ca24"; ctx.fillText(`${r.pts}đ`, x + 52, y - 92 + i * 15); ctx.textAlign = "left";
+  });
+  ctx.textAlign = "center";
+}
+function openLeaderboard() {
+  const rows = leaderboard.map((r, i) => `<tr${players[me] && r.name === players[me].name ? ' class="me"' : ""}><td>${["🥇", "🥈", "🥉"][i] || i + 1}</td><td class="nm">${esc(r.name)}</td><td>${r.tl || 0}</td><td>${r.caro || 0}</td><td>${r.chop || 0}</td><td>${r.xd || 0}</td><td>${r.quiz || 0}</td><td><b>${r.pts}</b></td></tr>`).join("");
+  $("lbTable").innerHTML = leaderboard.length
+    ? `<table><tr><th>#</th><th>Tên</th><th title="Về nhất Tiến Lên">🎴</th><th title="Thắng Caro">⭕</th><th title="Chặt heo">💥</th><th title="Thắng cái Xì Dách">♠️</th><th title="Đố vui đúng">🧠</th><th>Điểm</th></tr>${rows}</table>`
+    : "<p>Chưa có ai ghi điểm. Vào chơi Tiến Lên, Caro, Xì Dách để lên bảng!</p>";
+  $("lbModal").classList.remove("hidden");
+}
+$("lbClose").onclick = () => $("lbModal").classList.add("hidden");
+
+// ===== Mèo đi theo: nhận nuôi ở Cafe Mèo =====
+const CAT_NAMES = { orange: "cam", gray: "xám", black: "mun", white: "trắng", calico: "tam thể" };
+// Đang đứng gần Trạm cứu hộ mèo trong quán
+function nearAdopter() {
+  const p = players[me];
+  if (!p || room !== "cafe" || !WORLDS) return false;
+  const a = WORLDS.cafe.decor.adopter;
+  return Math.hypot(p.x - a.x, p.y - (a.y + 40)) < 150;
+}
+// Bảng chọn mèo: mỗi bé có hình xem trước
+function openAdopt() {
+  const mine = players[me] && players[me].pet;
+  $("adoptList").innerHTML = Object.keys(CAT_NAMES).map((c) => `<button type="button" class="adopt-cat${c === mine ? " sel" : ""}" data-cat="${c}"><canvas width="96" height="72"></canvas><span>Mèo ${CAT_NAMES[c]}</span></button>`).join("");
+  $("adoptList").querySelectorAll("[data-cat]").forEach((b) => {
+    const cv = b.querySelector("canvas"), g = cv.getContext("2d"), saved = ctx;
+    // drawCat vẽ lên `ctx` chung: tạm trỏ sang canvas nhỏ
+    ctx = g; drawCat({ color: b.dataset.cat }, 48, 64, false, 1, 0, 5, true); ctx = saved;
+  });
+  $("adoptRelease").classList.toggle("hidden", !mine);
+  $("adoptModal").classList.remove("hidden");
+}
+$("adoptList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-cat]");
+  if (!b) return;
+  socket.emit("adopt", b.dataset.cat);
+  try { localStorage.setItem("pet", b.dataset.cat); } catch (e) {}
+  $("adoptModal").classList.add("hidden");
+});
+$("adoptRelease").onclick = () => { socket.emit("adopt", null); try { localStorage.removeItem("pet"); } catch (e) {} $("adoptModal").classList.add("hidden"); };
+$("adoptClose").onclick = () => $("adoptModal").classList.add("hidden");
+// Mèo chạy theo sau lưng chủ, tới gần thì dừng lại
+function addPetItem(p, items, t) {
+  if (p.petX === undefined) { p.petX = p.rx - 34; p.petY = p.ry + 14; }
+  const behind = p.dir === "left" ? 34 : -34;
+  const tx = p.rx + behind, ty = p.ry + 14;
+  const dx = tx - p.petX, dy = ty - p.petY, dist = Math.hypot(dx, dy);
+  const moving = dist > 6;
+  if (moving) { p.petX += dx * 0.07; p.petY += dy * 0.07; p.petFace = Math.abs(dx) > 1 ? Math.sign(dx) : p.petFace || 1; }
+  const fy = p.petY + RADIUS;
+  items.push({ y: fy, draw: () => drawCat({ color: p.pet }, p.petX, fy, moving, p.petFace || 1, t, 3, false) });
+}
+
+// Đang đứng gần chỗ lên thuyền (đầu cầu tàu ở bãi biển, thuyền nhỏ trên Tàu Hải Tặc)
+function nearDock() {
+  const p = players[me];
+  if (!p || !WORLDS) return false;
+  const W = WORLDS[room], b = W && (room === "beach" ? W.decor.boat : room === "ship" ? W.decor.dinghy : null);
+  return !!b && Math.hypot(p.x - b.dock.x, p.y - b.dock.y) < 100;
+}

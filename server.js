@@ -59,6 +59,8 @@ const TREES = [{ x: 90, y: 390 }, { x: 1110, y: 390 }, { x: 90, y: 745 }, { x: 1
 const BENCHES = [{ x: 330, y: 445 }, { x: 330, y: 700 }, { x: 870, y: 445 }, { x: 870, y: 700 }];
 const EMOTES = { wave: 3000, dance: 6000, heart: 3000, laugh: 3000, cry: 3000, sleep: Infinity };
 // ===== Người bán hàng (NPC) ở sảnh: chỉ để trang trí, rao hàng bằng bong bóng chữ =====
+const LEADERBOARD = { x: 200, y: 400 }; // tấm bảng thành tích trên bãi cỏ bên trái sảnh
+const CAT_COLORS = ["orange", "gray", "black", "white", "calico"]; // màu mèo có thể nhận nuôi
 const NPCS = [
   { id: "fishball", name: "Cô Ba Cá Viên", x: 330, y: 600 },
   { id: "burger", name: "Anh Tèo Burger", x: 870, y: 600 },
@@ -67,6 +69,7 @@ const NPCS = [
 // ===== Quán Cafe Mèo =====
 const CAFE_TABLES = [{ x: 430, y: 470 }, { x: 760, y: 470 }, { x: 430, y: 680 }, { x: 760, y: 680 }];
 const SOFA = { x: 165, y: 560 };
+const ADOPTER = { x: 150, y: 430, name: "Chị Mai · Trạm cứu hộ mèo" }; // góc nhận nuôi mèo trong quán
 const CAFE_PLANTS = [{ x: 1140, y: 262 }, { x: 40, y: 770 }, { x: 1150, y: 772 }];
 // Mèo đi dạo theo vòng (path) hoặc nằm ngủ một chỗ; vị trí tính theo thời gian nên mọi máy thấy giống nhau
 const CATS = [
@@ -83,6 +86,27 @@ const CATS = [
 // Vật cản tính theo vị trí bàn chân: ellipse {x,y,rx,ry} | rect {x1,y1,x2,y2} | tree {x,y}
 // Chỗ ngồi: tâm nhân vật khi ngồi (x,y), hướng nhìn, nhóm (ngồi cùng nhóm mới nghe mic nhau), chỗ đứng dậy
 // Cổng (portal): đi vào vùng này thì sang bản đồ khác, xuất hiện ở spawn
+// ===== Bãi biển =====
+// Biển ở phía trên (bờ ở y≈300), cầu tàu gỗ đi ra biển; ghế dù ngồi được (ngồi chung dù thì nghe mic nhau)
+const SHORE_Y = 300;
+const PIER = { x1: 790, x2: 860, y1: 40 };
+const UMBRELLAS = [{ x: 320, y: 500 }, { x: 600, y: 690 }, { x: 960, y: 520 }];
+const PALMS = [{ x: 170, y: 380 }, { x: 1090, y: 380 }, { x: 1080, y: 740 }, { x: 170, y: 760 }];
+const CAMPFIRE = { x: 620, y: 470 };
+const HONOR_BOARD = { x: 800, y: 640 }; // tấm bảng "Nhanh trí nhất" của Bác Tư Đố Vui
+const SANDCASTLE = { x: 420, y: 380 };
+// ===== Thuyền ở cầu tàu + Tàu Hải Tặc (lấy cảm hứng từ Thousand Sunny) =====
+const BOAT = { x: 935, y: 95, dock: { x: 825, y: 70 } };        // thuyền neo cạnh đầu cầu tàu
+const SAIL_MS = 3600;                                           // thời gian hoạt cảnh ra khơi
+const SHIP = {
+  deck: { x1: 150, x2: 1060, y1: 215, y2: 705 },
+  mast: { x: 640, y: 440 },
+  trees: [{ x: 240, y: 300 }, { x: 335, y: 268 }, { x: 250, y: 640 }], // vườn quýt
+  swing: { x: 880, y: 300 },
+  benches: [{ x: 470, y: 300 }, { x: 470, y: 690 }],
+  cabin: { x1: 150, x2: 262, y1: 380, y2: 560 },
+  dinghy: { x: 900, y: 770, dock: { x: 900, y: 668 } },          // thuyền nhỏ về bờ, buộc ở mạn dưới bên phải
+};
 const WORLDS = {
   lobby: {
     name: "Sảnh",
@@ -91,10 +115,49 @@ const WORLDS = {
       ...TREES.map((t) => ({ type: "tree", ...t })),
       ...BENCHES.map((b) => ({ type: "rect", x1: b.x - 64, x2: b.x + 64, y1: b.y - 18, y2: b.y + 6 })),
       ...NPCS.map((n) => ({ type: "rect", x1: n.x - 64, x2: n.x + 64, y1: n.y - 58, y2: n.y + 8 })), // xe hàng + người bán
+      { type: "rect", x1: LEADERBOARD.x - 62, x2: LEADERBOARD.x + 62, y1: LEADERBOARD.y - 16, y2: LEADERBOARD.y + 6 }, // bảng thành tích
     ],
     seats: BENCHES.flatMap((b, i) => [-28, 28].map((dx) => ({ x: b.x + dx, y: b.y - 8 - R, dir: "down", group: "bench" + i, standX: b.x + dx, standY: b.y + 14 }))),
-    portals: [{ x1: 0, x2: 40, y1: 470, y2: 650, to: "cafe", spawn: { x: 1100, y: 560 }, label: "☕ Cafe Mèo" }],
-    decor: { fountain: FOUNTAIN, trees: TREES, benches: BENCHES, npcs: NPCS },
+    portals: [
+      { x1: 0, x2: 40, y1: 470, y2: 650, to: "cafe", spawn: { x: 1100, y: 560 }, label: "☕ Cafe Mèo" },
+      { x1: 1160, x2: 1200, y1: 470, y2: 650, to: "beach", spawn: { x: 90, y: 560 }, label: "🏖️ Bãi biển" },
+    ],
+    decor: { fountain: FOUNTAIN, trees: TREES, benches: BENCHES, npcs: NPCS, board: LEADERBOARD },
+  },
+  beach: {
+    name: "Bãi biển",
+    obstacles: [
+      { type: "rect", x1: 0, x2: PIER.x1, y1: 0, y2: SHORE_Y },           // biển bên trái cầu tàu
+      { type: "rect", x1: PIER.x2, x2: 1200, y1: 0, y2: SHORE_Y },        // biển bên phải cầu tàu
+      ...PALMS.map((t) => ({ type: "tree", ...t })),
+      { type: "ellipse", x: CAMPFIRE.x, y: CAMPFIRE.y, rx: 34, ry: 16 },
+      { type: "ellipse", x: SANDCASTLE.x, y: SANDCASTLE.y, rx: 36, ry: 14 },
+      ...UMBRELLAS.map((u) => ({ type: "rect", x1: u.x - 60, x2: u.x + 60, y1: u.y - 16, y2: u.y + 6 })), // ghế bố
+      { type: "rect", x1: HONOR_BOARD.x - 60, x2: HONOR_BOARD.x + 60, y1: HONOR_BOARD.y - 16, y2: HONOR_BOARD.y + 6 },
+    ],
+    seats: UMBRELLAS.flatMap((u, i) => [-30, 30].map((dx) => ({ x: u.x + dx, y: u.y - 8 - R, dir: "down", group: "umbrella" + i, standX: u.x + dx, standY: u.y + 14 }))),
+    portals: [{ x1: 0, x2: 40, y1: 470, y2: 650, to: "lobby", spawn: { x: 1110, y: 560 }, label: "🏛️ Sảnh" }],
+    decor: { shoreY: SHORE_Y, pier: PIER, umbrellas: UMBRELLAS, palms: PALMS, campfire: CAMPFIRE, sandcastle: SANDCASTLE, honor: HONOR_BOARD, boat: BOAT },
+  },
+  ship: {
+    name: "Tàu Hải Tặc",
+    obstacles: [
+      { type: "rect", x1: 0, x2: 1200, y1: 0, y2: SHIP.deck.y1 },          // biển phía trên
+      { type: "rect", x1: 0, x2: 1200, y1: SHIP.deck.y2, y2: 800 },         // biển phía dưới
+      { type: "rect", x1: 0, x2: SHIP.deck.x1, y1: 0, y2: 800 },            // đuôi tàu
+      { type: "rect", x1: SHIP.deck.x2, x2: 1200, y1: 0, y2: 800 },         // mũi tàu
+      { type: "ellipse", x: SHIP.mast.x, y: SHIP.mast.y, rx: 34, ry: 16 },  // cột buồm
+      ...SHIP.trees.map((t) => ({ type: "tree", ...t })),
+      { type: "rect", x1: SHIP.cabin.x1 - 10, x2: SHIP.cabin.x2, y1: SHIP.cabin.y1, y2: SHIP.cabin.y2 },
+      ...SHIP.benches.map((b) => ({ type: "rect", x1: b.x - 64, x2: b.x + 64, y1: b.y - 18, y2: b.y + 6 })),
+      { type: "rect", x1: SHIP.swing.x - 36, x2: SHIP.swing.x + 36, y1: SHIP.swing.y - 18, y2: SHIP.swing.y + 6 },
+    ],
+    seats: [
+      ...SHIP.benches.flatMap((b, i) => [-28, 28].map((dx) => ({ x: b.x + dx, y: b.y - 8 - R, dir: "down", group: "bench" + i, standX: b.x + dx, standY: b.y + 14 }))),
+      { x: SHIP.swing.x, y: SHIP.swing.y - 8 - R, dir: "down", group: "swing", standX: SHIP.swing.x, standY: SHIP.swing.y + 14 },
+    ],
+    portals: [],
+    decor: SHIP,
   },
   cafe: {
     name: "Cafe Mèo",
@@ -105,6 +168,7 @@ const WORLDS = {
       ...CAFE_TABLES.map((t) => ({ type: "ellipse", x: t.x, y: t.y, rx: 50, ry: 24 })),
       { type: "rect", x1: SOFA.x - 72, x2: SOFA.x + 72, y1: SOFA.y - 20, y2: SOFA.y + 6 },
       ...CAFE_PLANTS.map((t) => ({ type: "tree", ...t })),
+      { type: "rect", x1: ADOPTER.x - 70, x2: ADOPTER.x + 70, y1: ADOPTER.y - 40, y2: ADOPTER.y + 8 }, // chuồng mèo + người nhận nuôi
     ],
     seats: [
       ...CAFE_TABLES.flatMap((t, i) => [
@@ -114,7 +178,7 @@ const WORLDS = {
       ...[-28, 28].map((dx) => ({ x: SOFA.x + dx, y: SOFA.y - 8 - R, dir: "down", group: "sofa", standX: SOFA.x + dx, standY: SOFA.y + 14 })),
     ],
     portals: [{ x1: 1160, x2: 1200, y1: 470, y2: 650, to: "lobby", spawn: { x: 85, y: 560 }, label: "🏛️ Sảnh" }],
-    decor: { tables: CAFE_TABLES, sofa: SOFA, plants: CAFE_PLANTS, cats: CATS, catTree: { x: 1060, y: 330 } },
+    decor: { tables: CAFE_TABLES, sofa: SOFA, plants: CAFE_PLANTS, cats: CATS, catTree: { x: 1060, y: 330 }, adopter: ADOPTER },
   },
 };
 function blocked(W, x, y) {
@@ -130,7 +194,17 @@ function leaveBench(p) {
   if (p.pose !== "sit") return;
   const seat = WORLDS[p.room] && WORLDS[p.room].seats[p.spot];
   p.pose = null; p.spot = null;
-  if (seat) { p.x = seat.standX; p.y = seat.standY; } // đứng dậy ra phía trước ghế
+  if (seat) Object.assign(p, freeSpot(WORLDS[p.room], seat.standX, seat.standY)); // đứng dậy ra phía trước ghế
+}
+// Điểm không bị vật cản gần (x, y) nhất — tránh đứng dậy vào chỗ kẹt (vd. ghế sát mạn tàu)
+function freeSpot(W, x, y) {
+  if (!blocked(W, x, y)) return { x, y };
+  for (let r = 8; r <= 160; r += 8)
+    for (let a = 0; a < 16; a++) {
+      const nx = x + Math.cos((a / 16) * Math.PI * 2 - Math.PI / 2) * r, ny = y + Math.sin((a / 16) * Math.PI * 2 - Math.PI / 2) * r;
+      if (nx >= R && nx <= MAP.w - R && ny >= R && ny <= MAP.h - R && !blocked(W, nx, ny)) return { x: nx, y: ny };
+    }
+  return { x, y };
 }
 
 const players = {}; // socketId -> player
@@ -188,6 +262,28 @@ function dealRound(deck, ids, n) {
   return hands;
 }
 const systemChat = (room, text) => io.to(room).emit("chat", { system: true, text });
+
+// ===== Bảng thành tích (lưu vào stats.json, ghi theo tên người chơi) =====
+// Điểm: về nhất Tiến Lên +3, thắng Caro +3, chặt heo +2, thắng cái Xì Dách +1
+const STATS_FILE = __dirname + "/stats.json";
+const STAT_POINTS = { tl: 3, caro: 3, chop: 2, xd: 1, quiz: 1 };
+let stats = {};
+try { stats = JSON.parse(fs.readFileSync(STATS_FILE, "utf8")); } catch (e) {}
+let statsSaveTimer = null;
+function topStats() {
+  return Object.entries(stats)
+    .map(([name, st]) => ({ name, ...st, pts: Object.keys(STAT_POINTS).reduce((a, k) => a + (st[k] || 0) * STAT_POINTS[k], 0) }))
+    .sort((a, b) => b.pts - a.pts).slice(0, 10);
+}
+function addStat(id, key) {
+  const p = players[id];
+  if (!p) return;
+  const st = (stats[p.name] = stats[p.name] || { tl: 0, caro: 0, chop: 0, xd: 0, quiz: 0 });
+  st[key] = (st[key] || 0) + 1;
+  clearTimeout(statsSaveTimer);
+  statsSaveTimer = setTimeout(() => fs.writeFile(STATS_FILE, JSON.stringify(stats, null, 1), () => {}), 1000);
+  io.emit("stats", topStats());
+}
 
 // ===== Bàn chơi dùng chung =====
 // Mỗi phòng game là một bàn 6 ghế. Người ngồi sớm nhất làm chủ bàn (cái).
@@ -398,6 +494,7 @@ function xdNextTurn(t) {
 }
 function xdRevealAll(t) {
   t.revealed = true; t.turn = null;
+  for (const id of Object.keys(t.hands)) if (id !== t.hostId && xdResult(t, id) === "win") addStat(id, "xd");
 }
 // Ai được xem bài của người này: cả bàn khi đã lật; khi mới bị xét thì chỉ cái và chính người đó
 function xdCanSee(t, id, viewer) {
@@ -593,9 +690,9 @@ function tlPlay(t, id, cards) {
   if (!tlBeats(combo, t.current && t.current.combo)) return "Bài này không chặn được";
   const chop = t.current && combo.type !== t.current.combo.type;
   t.hands[id] = t.hands[id].filter((c) => !cards.includes(c));
-  if (chop) systemChat(t.room, `💥 ${players[id].name} chặt bằng ${combo.label}!`);
+  if (chop) { systemChat(t.room, `💥 ${players[id].name} chặt bằng ${combo.label}!`); addStat(id, "chop"); }
   t.current = { cards: tlSort(cards), combo, by: id, chop: !!chop };
-  if (!t.hands[id].length) return tlEnd(t, id);
+  if (!t.hands[id].length) { addStat(id, "tl"); return tlEnd(t, id); } // về nhất thật sự (đánh hết bài) mới tính điểm
   tlNextTurn(t);
 }
 const tienlen = {
@@ -724,7 +821,7 @@ const caro = {
       if (!(i >= 0 && i < CARO_N * CARO_N) || t.board[i]) return;
       t.board[i] = id === t.xId ? 1 : 2; t.last = i;
       const line = caroWin(t.board, i);
-      if (line) { t.phase = "end"; t.winner = id; t.winLine = line; t.turn = null; systemChat(t.room, `🏆 ${players[id].name} thắng ván caro!`); return; }
+      if (line) { t.phase = "end"; t.winner = id; t.winLine = line; t.turn = null; systemChat(t.room, `🏆 ${players[id].name} thắng ván caro!`); addStat(id, "caro"); return; }
       if (t.board.every(Boolean)) { t.phase = "end"; t.draw = true; t.turn = null; return; }
       t.turn = id === t.xId ? t.oId : t.xId;
     },
@@ -787,6 +884,7 @@ io.on("connection", (s) => {
     if (typeof opts === "function") { cb = opts; opts = {}; }
     if (players[s.id]) return;
     const costume = s.data.skinOk || checkSkinCode(s, opts && opts.skinCode) ? "kid" : null;
+    const pet = opts && CAT_COLORS.includes(opts.pet) ? opts.pet : null;
     players[s.id] = {
       name: sanitizeName(name),
       look: costume ? { ...sanitizeLook(look), costume } : sanitizeLook(look),
@@ -798,16 +896,16 @@ io.on("connection", (s) => {
       bubble: null, bubbleUntil: 0,
       mic: false, speaking: false,
       pose: null, spot: null, emote: null, emoteAt: 0,
-      vgroup: null,
+      vgroup: null, pet,
     };
     s.join("lobby");
-    if (typeof cb === "function") cb({ id: s.id, costume, map: MAP, doors: DOORS, faces: FACES, radius: R, httpsPort: HTTPS_PORT, worlds: WORLDS });
+    if (typeof cb === "function") cb({ id: s.id, costume, map: MAP, doors: DOORS, faces: FACES, radius: R, httpsPort: HTTPS_PORT, worlds: WORLDS, stats: topStats() });
     systemChat("lobby", `${players[s.id].name} đã vào sảnh`);
   });
 
   s.on("input", (inp) => {
     const p = players[s.id];
-    if (!p || !inp) return;
+    if (!p || !inp || p.sailing) return;
     let dx = Number(inp.dx) || 0, dy = Number(inp.dy) || 0;
     const len = Math.hypot(dx, dy);
     if (len > 1) { dx /= len; dy /= len; }
@@ -837,6 +935,38 @@ io.on("connection", (s) => {
     updateVoice(s.id);
   });
 
+  // Nhận nuôi mèo ở Trạm cứu hộ (góc quán Cafe Mèo); color = null là trả mèo về trạm
+  s.on("adopt", (color) => {
+    const p = players[s.id];
+    if (!p || p.room !== "cafe") return;
+    if (Math.hypot(p.x - ADOPTER.x, p.y - (ADOPTER.y + 40)) > 170) return s.emit("toast", "Hãy lại gần Trạm cứu hộ mèo để nhận nuôi");
+    if (color === null) { p.pet = null; return s.emit("toast", "Đã trả bé mèo về trạm 🐾"); }
+    if (!CAT_COLORS.includes(color)) return;
+    p.pet = color;
+    s.emit("toast", "🐱 Bé mèo sẽ đi theo bạn khắp nơi!");
+    systemChat("cafe", `🐱 ${p.name} vừa nhận nuôi một bé mèo`);
+  });
+
+  // Lên thuyền: ở cầu tàu bãi biển -> ra Tàu Hải Tặc; ở thuyền nhỏ trên tàu -> về bãi biển
+  s.on("board", () => {
+    const p = players[s.id];
+    if (!p || p.sailing) return;
+    // Xuống thuyền cách chỗ lên thuyền một chút để nút "Lên thuyền" không hiện ngay
+    const trip = p.room === "beach" ? { dock: BOAT.dock, to: "ship", spawn: { x: SHIP.dinghy.dock.x - 90, y: SHIP.dinghy.dock.y - 90 } }
+      : p.room === "ship" ? { dock: SHIP.dinghy.dock, to: "beach", spawn: { x: BOAT.dock.x, y: BOAT.dock.y + 140 } } : null;
+    if (!trip) return;
+    if (Math.hypot(p.x - trip.dock.x, p.y - trip.dock.y) > 110) return s.emit("toast", "Hãy lại gần thuyền để lên");
+    leaveBench(p); p.emote = null; p.dx = p.dy = 0;
+    p.sailing = true;                       // ẩn khỏi bản đồ trong lúc thuyền chạy
+    boatDepart[p.room] = Date.now();        // người khác thấy thuyền rời bến
+    s.emit("sail", { to: trip.to, ms: SAIL_MS });
+    setTimeout(() => {
+      if (players[s.id] !== p || !p.sailing) return;
+      p.sailing = false;
+      changeWorld(s.id, p, trip);
+    }, SAIL_MS);
+  });
+
   // Vuốt mèo ở quán Cafe Mèo: cả quán thấy mèo kêu
   s.on("pet", (i) => {
     const p = players[s.id];
@@ -859,6 +989,8 @@ io.on("connection", (s) => {
     text = String(text || "").trim().slice(0, 120);
     if (!text) return;
     p.bubble = text; p.bubbleUntil = Date.now() + 4000;
+    if (p.room === "beach") setTimeout(() => quizAnswer(s.id, text), 0); // chấm sau khi tin nhắn đã hiện
+    if (p.room === "ship") setTimeout(() => zoroReply(s.id, text), 0);
     io.to(p.room).emit("chat", { name: p.name, color: p.color, text });
   });
 
@@ -974,6 +1106,237 @@ function changeWorld(id, p, portal) {
   systemChat(portal.to, `${p.name} đã tới ${WORLDS[portal.to].name}`);
 }
 
+const boatDepart = { beach: 0, ship: 0 }; // lúc thuyền rời bến gần nhất (để vẽ thuyền chạy ra xa)
+
+// ===== Bác Tư Đố Vui (bãi biển): đi dạo, ra phép tính, ai trả lời đúng trước được vinh danh =====
+const QUIZ_GAP = 15000, QUIZ_INTRO = 3000, QUIZ_TIME = 30000, QUIZ_SPEED = 60;
+// Lời thoại của Bác Tư
+const QUIZ_TALK = {
+  call: ["Các cháu ơi lại đây, bác có câu đố nè! 📣", "Tới giờ đố vui rồi bà con ơi! 🎉", "Ai giỏi toán thì nghe bác đố nè! 🧠", "Chuẩn bị nha, câu mới tới đây! 🔔", "Ê ê, tập trung nha, bác hỏi nè! 👀"],
+  lead: ["Câu này dễ ợt nè:", "Ai nhanh tay thì có vương miện nha:", "Tính nhẩm thử coi:", "Câu này hơi khó à nha:", "Bác đố nè:", "Nghe kỹ nè:"],
+  half: ["Còn 15 giây nha mấy đứa! ⏳", "Nhanh lên, sắp hết giờ rồi! ⌛", "Có ai biết hông dạ? 🤔"],
+  last: ["Nhanh lên nhanh lên! 😱", "5 giây cuối nè! 🔥", "Sắp hết giờ rồi đó!! ⏰"],
+  wrong: ["Chưa đúng rồi {n} ơi! 😜", "Sai rồi {n}, tính lại coi! 🤭", "Gần đúng rồi {n}, thử lại đi! 💪", "Hổng phải đâu {n} ơi! 😆"],
+  win: ["🎉 Giỏi quá {n}! Đáp án {a} chính xác!", "👏 Đúng rồi! {n} tính nhanh như máy!", "🏆 Xuất sắc {n}! Đáp án là {a}!", "😎 {n} đúng là thần đồng! {a} chuẩn luôn!"],
+  timeout: ["Hết giờ rồi! Đáp án là {a} nha 😄", "Tiếc quá, không ai đúng! Đáp án là {a} 😅", "Câu này khó hả? Đáp án là {a} đó!"],
+  idle: ["Hôm nay biển đẹp ghê! 🌊", "Ai giỏi toán thì lại đây chơi với bác! 😄", "Gió biển mát quá trời! 🍃", "Lát nữa bác đố tiếp nha! 🧮", "Mấy đứa nhớ uống nước nha! 🥥", "Ai trả lời đúng được đội vương miện đó! 👑"],
+};
+const pick = (arr) => arr[randInt(arr.length)];
+const fill = (s, n, a) => s.replace("{n}", n).replace("{a}", a);
+const quiz = { x: 250, y: 620, tx: 250, ty: 620, pauseUntil: 0, dir: "down", moving: false, phase: "idle", q: null, lead: "", endsAt: 0, nextAt: Date.now() + 8000,
+  say: "", sayUntil: 0, sub: "", subUntil: 0, winner: "", hint15: false, hint5: false, nextChat: Date.now() + 5000, lastWrong: 0 };
+const ri = (a, b) => a + randInt(b - a + 1); // số nguyên ngẫu nhiên trong [a, b]
+// Sinh một phép tính ngẫu nhiên (nhiều dạng, đáp án luôn là số nguyên)
+function makeMathQuestion() {
+  const kinds = [
+    () => { const a = ri(12, 499), b = ri(12, 499); return [`${a} + ${b}`, a + b]; },
+    () => { const a = ri(100, 999), b = ri(10, a - 1); return [`${a} - ${b}`, a - b]; },
+    () => { const a = ri(3, 12), b = ri(3, 12); return [`${a} × ${b}`, a * b]; },
+    () => { const a = ri(12, 99), b = ri(3, 9); return [`${a} × ${b}`, a * b]; },
+    () => { const b = ri(3, 12), q = ri(4, 25); return [`${b * q} ÷ ${b}`, q]; },
+    () => { const a = ri(2, 20), b = ri(2, 9), c = ri(2, 9); return [`${a} + ${b} × ${c}`, a + b * c]; },
+    () => { const a = ri(2, 15), b = ri(2, 15), c = ri(2, 9); return [`(${a} + ${b}) × ${c}`, (a + b) * c]; },
+    () => { const a = ri(30, 99), b = ri(2, 9), c = ri(2, 6); return [`${a} - ${b} × ${c}`, a - b * c]; },
+    () => { const a = ri(4, 20); return [`${a}²`, a * a]; },
+    () => { const pc = [10, 20, 25, 50][randInt(4)], y = ri(2, 20) * (100 / pc === 4 ? 4 : 10); return [`${pc}% của ${y}`, (pc * y) / 100]; },
+    () => { const x = ri(5, 60), a = ri(5, 60); return [`Tìm x: x + ${a} = ${x + a}`, x]; },
+    () => { const x = ri(3, 12), a = ri(3, 9); return [`Tìm x: ${a} × x = ${a * x}`, x]; },
+  ];
+  const [text, ans] = kinds[randInt(kinds.length)]();
+  return { text: text.startsWith("Tìm") ? text : `${text} = ?`, ans };
+}
+// Chọn điểm đến ngẫu nhiên trên bãi cát (không nằm trong vật cản, không quá gần chỗ đang đứng)
+function quizNewTarget() {
+  for (let i = 0; i < 30; i++) {
+    const x = ri(70, 1130), y = ri(SHORE_Y + 40, 770);
+    const behindUmbrella = UMBRELLAS.some((u) => Math.abs(x - u.x) < 90 && y > u.y - 170 && y < u.y); // khỏi bị tán dù che
+    if (!blocked(WORLDS.beach, x, y) && !behindUmbrella && Math.hypot(x - quiz.x, y - quiz.y) > 150) { quiz.tx = x; quiz.ty = y; return; }
+  }
+}
+function quizSay(text, ms) { quiz.say = text; quiz.sayUntil = Date.now() + ms; }
+function quizSub(text, ms) { quiz.sub = text; quiz.subUntil = Date.now() + ms; } // dòng nói thêm phía trên câu đố
+function quizTick(now, dt, anyone) {
+  if (quiz.phase === "idle" && now >= quiz.nextAt) {
+    // Gọi mọi người lại trước khi ra đề (chỉ khi có người ở bãi biển)
+    if (!anyone) quiz.nextAt = now + 5000;
+    else { quiz.phase = "intro"; quizSay(pick(QUIZ_TALK.call), QUIZ_INTRO); quiz.nextAt = now + QUIZ_INTRO; }
+  } else if (quiz.phase === "intro" && now >= quiz.nextAt) {
+    // Ra đề
+    quiz.phase = "ask"; quiz.q = makeMathQuestion(); quiz.endsAt = now + QUIZ_TIME; quiz.hint15 = quiz.hint5 = false;
+    quiz.lead = pick(QUIZ_TALK.lead);
+    quizSay(`🧮 ${quiz.q.text}`, QUIZ_TIME); quizSub(quiz.lead, 6000);
+    systemChat("beach", `🧮 Bác Tư: ${quiz.lead} ${quiz.q.text}  (gõ đáp án vào khung chat, 30 giây!)`);
+  } else if (quiz.phase === "ask") {
+    const left = quiz.endsAt - now;
+    if (!quiz.hint15 && left <= 15000) { quiz.hint15 = true; quizSub(pick(QUIZ_TALK.half), 5000); }
+    if (!quiz.hint5 && left <= 5000) { quiz.hint5 = true; quizSub(pick(QUIZ_TALK.last), 5000); }
+    if (left <= 0) {
+      // Hết giờ mà không ai đúng
+      const msg = fill(pick(QUIZ_TALK.timeout), "", quiz.q.ans);
+      systemChat("beach", `⏰ Bác Tư: ${msg}`);
+      quizSay(msg, 5000); quiz.sub = "";
+      quiz.q = null; quiz.phase = "idle"; quiz.nextAt = now + QUIZ_GAP;
+    }
+  }
+  // Lúc đi dạo thỉnh thoảng nói bâng quơ
+  if (quiz.phase === "idle" && anyone && now >= quiz.nextChat && now >= quiz.sayUntil) {
+    quizSay(pick(QUIZ_TALK.idle), 4000); quiz.nextChat = now + 9000 + randInt(5000);
+  }
+  // Đi dạo khi rảnh, đứng lại lúc gọi mọi người và lúc đố
+  // Đi ngẫu nhiên khắp bãi cát: chọn điểm bất kỳ, tới nơi thì đôi khi đứng nghỉ, gặp vật cản thì đổi hướng
+  quiz.moving = quiz.phase === "idle" && now >= quiz.pauseUntil;
+  if (quiz.moving) {
+    const dx = quiz.tx - quiz.x, dy = quiz.ty - quiz.y, d = Math.hypot(dx, dy), stepLen = QUIZ_SPEED * dt;
+    if (d <= stepLen) {
+      quiz.x = quiz.tx; quiz.y = quiz.ty;
+      if (randInt(3) === 0) quiz.pauseUntil = now + 1000 + randInt(2500);
+      quizNewTarget();
+    } else {
+      const nx = quiz.x + (dx / d) * stepLen, ny = quiz.y + (dy / d) * stepLen;
+      if (blocked(WORLDS.beach, nx, ny)) quizNewTarget();
+      else { quiz.x = nx; quiz.y = ny; quiz.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : dy < 0 ? "up" : "down"; }
+    }
+  } else if (quiz.phase !== "idle") quiz.dir = "down";
+}
+// Chấm câu trả lời: lấy con số đầu tiên trong tin nhắn
+function quizAnswer(id, text) {
+  const p = players[id];
+  if (quiz.phase !== "ask" || !quiz.q || !p || p.room !== "beach") return;
+  const m = String(text).replace(/\s+/g, "").match(/-?\d+(?:[.,]\d+)?/);
+  if (!m) return;
+  if (Number(m[0].replace(",", ".")) !== quiz.q.ans) {
+    // Trả lời sai: bác trêu (không quá dày)
+    if (Date.now() - quiz.lastWrong > 1500) { quiz.lastWrong = Date.now(); quizSub(fill(pick(QUIZ_TALK.wrong), p.name, ""), 2500); }
+    return;
+  }
+  const ans = quiz.q.ans, msg = fill(pick(QUIZ_TALK.win), p.name, ans);
+  quiz.q = null; quiz.phase = "idle"; quiz.nextAt = Date.now() + QUIZ_GAP; quiz.winner = p.name; quiz.sub = "";
+  quiz.nextChat = Date.now() + 8000;
+  p.crownUntil = Date.now() + 120000; // đội vương miện 2 phút
+  addStat(id, "quiz");
+  quizSay(msg, 6000);
+  systemChat("beach", `🎉 ${p.name} trả lời đúng nhanh nhất: ${ans}! Vinh danh 👑 Nhà thông thái!`);
+}
+// ===== Zoro trên tàu chat bằng AI (Google Gemini, gói miễn phí) =====
+// Key lấy từ biến môi trường GEMINI_API_KEY, hoặc file gemini-key.txt (không đưa lên GitHub). Không có key thì tắt.
+const GEMINI_KEY = (() => {
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim();
+  try { return fs.readFileSync(__dirname + "/gemini-key.txt", "utf8").trim(); } catch (e) { return ""; }
+})();
+// Thử lần lượt: model nào quá tải / hết lượt / không có thì chuyển sang model kế tiếp
+const GEMINI_MODELS = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-3.5-flash,gemini-flash-latest").split(",").map((m) => m.trim()).filter(Boolean);
+const ZORO = { x: 700, y: 520 }; // chỗ Zoro ngồi tựa cột buồm (khớp crewPos trong public/ship.js)
+const ZORO_PROMPT = `Bạn là Roronoa Zoro, kiếm sĩ ba kiếm trên tàu hải tặc trong một game 2D nhiều người chơi, đang trò chuyện với người chơi qua khung chat.
+QUAN TRỌNG NHẤT: luôn trả lời ĐÚNG và ĐỦ ý câu người chơi vừa hỏi (toán, kiến thức, cách chơi, tâm sự...). Không được né, không đẩy sang người khác, không đuổi người chơi đi.
+Nói chuyện TỰ NHIÊN như một người bạn thân đang nhắn tin, không theo khuôn mẫu:
+- Đổi cách nói liên tục: lúc một câu cụt lủn, lúc hỏi lại, lúc trêu, lúc nghiêm túc. Đừng câu nào cũng cùng một kiểu "trả lời + than buồn ngủ".
+- Chất Zoro (ngắn gọn, hơi cộc nhưng tốt bụng) thể hiện qua giọng điệu là chính. Chỉ thỉnh thoảng mới nhắc kiếm, rượu, ngủ, mù đường, khi thật sự hợp ngữ cảnh. Tuyệt đối không lặp lại chuyện đã nói ở các câu trước.
+- Thông tin đã biết về người chơi chỉ dùng khi liên quan tới câu đang nói, như bạn bè lâu năm tự nhiên nhớ ra; đừng nhét vào để khoe là mình biết.
+- Biệt danh / cách gọi người chơi chỉ thỉnh thoảng mới dùng (như người thật nhắn tin), không gắn vào cuối mọi câu.
+- Được phép hỏi lại người chơi, bắt chuyện tiếp, đùa theo câu người ta vừa nói.
+- Viết kiểu chat bình thường của người Việt trẻ, có thể dùng từ đời thường (ừ, ờ, thôi, vậy hả, ghê ta...). Emoji không bắt buộc, phần lớn câu không cần emoji.
+Trên tàu còn có thuyền trưởng Luffy (ham ăn, ồn ào) và Nami (hoa tiêu, giữ tiền, có vườn quýt).
+Trong game: Sảnh, Bãi biển (Bác Tư đố toán, ai đúng nhanh nhất được vương miện), Cafe Mèo (nhận nuôi mèo), thuyền ở cầu tàu chở ra Tàu Hải Tặc. Mọi trò chơi dùng xu ảo:
+- Bầu Cua: cái lắc, mọi người chọn mức cược rồi chạm con vật; ra 1 con ăn bằng tiền cược, 2 con gấp 2, 3 con gấp 3, không ra thì mất.
+- Bài Cào: 3 lá, tính nút = hàng đơn vị tổng điểm (A=1, 10/J/Q/K=0), Ba Tây lớn nhất.
+- Xì Dách: 2 lá, rút thêm tối đa 5 lá, đủ 16 mới được dằn; Xì Bàng > Xì Dách > Ngũ Linh > điểm thường, quá 21 là quắc.
+- Tiến Lên: 2-4 người, 13 lá, ai hết bài trước thắng. Caro: 2 người, 5 quân liền hàng thắng.
+Trả lời bằng tiếng Việt, xưng "tôi" (không xưng "tao", không gọi "mày"), thường 1-2 câu ngắn, dưới 150 ký tự.
+Tin nhắn người chơi có dạng "Tên: nội dung"; trả lời người vừa nhắn, chỉ viết nội dung câu trả lời, không ghi tên ai ở đầu.
+Hãy dùng những điều đã biết về người chơi (bên dưới) để trả lời cho đúng và thân thiết, nhưng đừng kể lể hết ra khi không ai hỏi.
+Trả về JSON: "reply" là câu trả lời; "remember" là điều MỚI người chơi vừa kể về chính họ đáng ghi nhớ lâu dài (sở thích, công việc, sinh nhật, thú cưng, bạn bè...), viết ngắn ở ngôi thứ ba, ví dụ "thích ăn phở"; không có thì để chuỗi rỗng. Không bàn chuyện người lớn, chính trị; gặp thì gạt đi nhẹ nhàng.`;
+const zoroTalk = { busy: false, history: [], readyAt: 0 };
+// Điều Zoro biết: file zoro-biet.txt do chủ game tự viết (đọc lại mỗi lần hỏi, sửa là có hiệu lực ngay, dòng bắt đầu bằng # bị bỏ qua)
+const ZORO_KNOW_FILE = __dirname + "/zoro-biet.txt";
+function zoroKnowledge() {
+  try { return fs.readFileSync(ZORO_KNOW_FILE, "utf8").split("\n").filter((l) => !l.trim().startsWith("#")).join("\n").trim().slice(0, 6000); } catch (e) { return ""; }
+}
+// Điều Zoro tự nhớ về từng người chơi (theo tên) khi họ kể, lưu trong zoro-nho.json
+const ZORO_MEM_FILE = __dirname + "/zoro-nho.json", ZORO_MEM_MAX = 15;
+let zoroMem = {};
+try { zoroMem = JSON.parse(fs.readFileSync(ZORO_MEM_FILE, "utf8")) || {}; } catch (e) {}
+function zoroRemember(name, fact) {
+  fact = String(fact || "").replace(/\s+/g, " ").trim().slice(0, 150);
+  if (!fact) return;
+  const key = noAccent(name).trim(); // "Nhựt" và "nhut" là cùng một người
+  const list = (zoroMem[key] = zoroMem[key] || []);
+  if (list.includes(fact)) return;
+  list.push(fact);
+  if (list.length > ZORO_MEM_MAX) list.shift(); // quên điều cũ nhất
+  try { fs.writeFileSync(ZORO_MEM_FILE, JSON.stringify(zoroMem, null, 2)); } catch (e) { console.log("Không lưu được zoro-nho.json:", e.message); }
+  console.log(`Zoro nhớ về ${name}: ${fact}`);
+}
+const noAccent = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
+// Trên tàu: nhắc tên "Zoro", hoặc chat khi đang đứng gần Zoro thì Zoro chat lại
+function zoroReply(id, text) {
+  const p = players[id];
+  if (!GEMINI_KEY || !p || p.room !== "ship") return;
+  if (!/zoro/.test(noAccent(text)) && Math.hypot(p.x - ZORO.x, p.y - ZORO.y) > 180) return;
+  // Nhiều người hỏi cùng lúc thì chỉ trả lời câu đến trước; trả lời xong nghỉ 2 giây mới nhận câu mới
+  if (zoroTalk.busy || Date.now() < zoroTalk.readyAt) return;
+  zoroAsk(p, text);
+}
+function zoroAsk(p, text) {
+  zoroTalk.busy = true;
+  zoroTalk.history.push({ role: "user", parts: [{ text: `${p.name}: ${text}` }] });
+  const today = new Date().toLocaleString("vi-VN", { weekday: "long", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const know = zoroKnowledge(), mem = zoroMem[noAccent(p.name).trim()] || [];
+  let prompt = `${ZORO_PROMPT}\nBây giờ là ${today}.`;
+  if (know) prompt += `\n\nNhững điều Zoro biết (chủ game kể):\n${know}`;
+  if (mem.length) prompt += `\n\nNhững điều ${p.name} từng kể với Zoro:\n- ${mem.join("\n- ")}`;
+  askGemini(prompt, zoroTalk.history, true)
+    .then((out) => {
+      let reply = out, remember = "";
+      try { const j = JSON.parse(out); reply = String(j.reply || "").trim(); remember = j.remember; } catch (e) {}
+      reply = reply.replace(/^(zoro|[^:]{1,24}):\s*/i, "").slice(0, 200); // bỏ "Tên:" nếu model tự ghi ở đầu
+      if (!reply) throw new Error("trả lời rỗng");
+      if (remember) zoroRemember(p.name, remember);
+      zoroTalk.history.push({ role: "model", parts: [{ text: reply }] });
+      zoroChat(reply);
+    })
+    .catch((e) => {
+      console.log("Gemini lỗi:", e.message);
+      zoroTalk.history.pop(); // bỏ câu chưa được trả lời để lịch sử luôn xen kẽ người chơi / Zoro
+      zoroChat(pick(["Zzz... 😪", "Hả? ...Để tôi ngủ chút đã."]));
+    })
+    .finally(() => {
+      zoroTalk.busy = false;
+      zoroTalk.history = zoroTalk.history.slice(-16); // nhớ 8 lượt hỏi đáp gần nhất
+      zoroTalk.readyAt = Date.now() + 2000;
+    });
+}
+async function askGemini(prompt, contents, json) {
+  let err;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: prompt }] }, contents, generationConfig: { temperature: 1.1, maxOutputTokens: 1024, ...(json && {
+          responseMimeType: "application/json",
+          responseSchema: { type: "object", properties: { reply: { type: "string" }, remember: { type: "string" } }, required: ["reply", "remember"] },
+        }) } }),
+        signal: AbortSignal.timeout(12000),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(`${model} ${r.status} ${(data.error && data.error.message) || ""}`);
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const reply = parts.filter((x) => !x.thought).map((x) => x.text || "").join(" ").replace(/\s+/g, " ").trim();
+      if (reply) return reply;
+      throw new Error(`${model} trả lời rỗng`);
+    } catch (e) { err = e; }
+  }
+  throw err;
+}
+const zoroChat = (text) => io.to("ship").emit("chat", { name: "Zoro", color: "#55efc4", text, npc: "zoro" }); // vừa hiện trong khung chat vừa thành bong bóng thoại
+function quizView(now) {
+  return {
+    x: Math.round(quiz.x), y: Math.round(quiz.y), dir: quiz.dir, moving: quiz.moving,
+    say: now < quiz.sayUntil ? quiz.say : "", sub: now < quiz.subUntil ? quiz.sub : "",
+    remain: quiz.phase === "ask" ? Math.max(0, quiz.endsAt - now) : 0, winner: quiz.winner,
+  };
+}
+
 // ===== Vòng lặp di chuyển (30 lần/giây) =====
 let last = Date.now();
 setInterval(() => {
@@ -985,6 +1348,7 @@ setInterval(() => {
   for (const [id, p] of Object.entries(players)) {
     const W = WORLDS[p.room];
     if (!W) { if (counts[p.room] !== undefined) counts[p.room]++; continue; }
+    if (p.sailing) continue; // đang ngồi thuyền ra khơi
     if (p.pose !== "sit" && (p.dx || p.dy)) {
       const nx = Math.max(R, Math.min(MAP.w - R, p.x + p.dx * SPEED * dt));
       const ny = Math.max(R, Math.min(MAP.h - R, p.y + p.dy * SPEED * dt));
@@ -998,13 +1362,14 @@ setInterval(() => {
     if (p.emote && now - p.emoteAt > EMOTES[p.emote]) p.emote = null;
     lists[p.room].push({
       id, name: p.name, color: p.color, look: p.look, mic: p.mic, speaking: p.mic && p.speaking,
-      pose: p.pose, sitDir: p.pose === "sit" ? W.seats[p.spot].dir : null, emote: p.emote, emoteAge: p.emote ? now - p.emoteAt : 0,
+      pet: p.pet, crown: (p.crownUntil || 0) > now, pose: p.pose, sitDir: p.pose === "sit" ? W.seats[p.spot].dir : null, emote: p.emote, emoteAge: p.emote ? now - p.emoteAt : 0,
       x: Math.round(p.x), y: Math.round(p.y),
       bubble: now < p.bubbleUntil ? p.bubble : null,
     });
   }
   const online = Object.keys(players).length;
-  for (const w in lists) io.to(w).emit("state", { players: lists[w], counts, online });
+  quizTick(now, dt, lists.beach.length > 0);
+  for (const w in lists) io.to(w).emit("state", { players: lists[w], counts, online, quiz: w === "beach" ? quizView(now) : undefined, boatDepart: boatDepart[w] ? now - boatDepart[w] : null });
 }, 1000 / 30);
 
 httpsServer.listen(HTTPS_PORT, "0.0.0.0");
@@ -1015,5 +1380,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("\nMuốn dùng mic trên máy khác thì mở bằng https (lần đầu trình duyệt cảnh báo: bấm Nâng cao > Tiếp tục):");
   for (const ip of lanIPs()) console.log(`   https://${ip}:${HTTPS_PORT}`);
   console.log(`\nMã skin admin (Kaito Kid): ${ADMIN_CODE}   (đổi trong file admin-code.txt)`);
+  console.log(GEMINI_KEY ? `Zoro chat bằng AI: BẬT (${GEMINI_MODELS.join(", ")})` : "Zoro chat bằng AI: TẮT (dán Gemini API key vào file gemini-key.txt để bật)");
   console.log("\nNhấn Ctrl+C để tắt server.\n");
 });

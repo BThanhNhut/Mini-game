@@ -340,3 +340,32 @@ body.in-table #fsBtn { display: none; }
 @media (max-width: 500px), (orientation: landscape) and (max-height: 520px) { #musicVol { width: 56px; } }
 .bk-top .t-sound { padding: 4px 8px; font-size: 16px; background: rgba(255,255,255,.12); }
 .bk-top .t-sound.off { opacity: .55; }
+
+/* Câu nói nhanh */
+#chatForm { display: flex; gap: 6px; }
+#quickBtn { padding: 0 10px; font-size: 18px; background: rgba(0,0,0,.6); flex: none; }
+#quickMenu { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; max-width: 360px; }
+#quickMenu button { padding: 6px 10px; font-size: 13px; background: rgba(45,52,54,.95); border: 1px solid rgba(255,255,255,.2); border-radius: 14px; }
+#quickMenu button:hover { background: #6c5ce7; }
+/* Bảng thành tích */
+.lb-card { width: min(520px, 100%); }
+.lb-card h2 { margin: 0 0 4px; color: #f9ca24; }
+.card .lb-note { font-size: 12px; margin-bottom: 10px; }
+#lbTable table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+#lbTable th, #lbTable td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,.1); }
+#lbTable td.nm { text-align: left; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lbTable tr.me td { background: rgba(249,202,36,.15); }
+
+/* Trạm cứu hộ mèo: bảng chọn mèo */
+.adopt-card { width: min(460px, 100%); }
+.adopt-card h2 { margin: 0 0 4px; color: #fd79a8; }
+#adoptList { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.card .adopt-cat { width: auto; padding: 8px 4px; background: #fff8e1; color: #3d2b1f; border: 3px solid transparent; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; }
+.card .adopt-cat canvas { image-rendering: pixelated; }
+.card .adopt-cat.sel { border-color: #fd79a8; }
+.card .adopt-cat:hover { border-color: #f9ca24; }
+.card #adoptRelease { width: auto; margin: 0 auto 8px; display: block; }
+
+/* Hoạt cảnh ra khơi */
+#sailScene { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 45; transition: opacity .6s; }
+#sailScene.out { opacity: 0; }

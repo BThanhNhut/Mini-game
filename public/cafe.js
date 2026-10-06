@@ -87,6 +87,8 @@ function drawCafe(W, t, items) {
   W.seats.forEach((st) => { if (st.group !== "sofa") items.push({ y: st.y + RADIUS - 30, draw: () => drawChair(st) }); });
   items.push({ y: D.sofa.y - 30, draw: () => drawSofa(D.sofa) });
   for (const pl of D.plants) items.push({ y: pl.y, draw: () => drawPlant(pl, t) });
+  items.push({ y: D.adopter.y, draw: () => drawAdopter(D.adopter, t) });
+  items.push({ y: 1e6, draw: () => drawAdopterLabel(D.adopter) }); // tên + biển luôn nằm trên cùng
   D.cats.forEach((c, i) => {
     const q = catPos(c, Date.now());
     items.push({ y: q.y + (c.perch ? 1 : 0), draw: () => drawCat(c, q.x, q.y - (c.perch || 0), q.moving, q.face, t, 3, false, i) });
@@ -253,4 +255,34 @@ function drawCat(c, x, fy, moving, face, t, u, tiny, index) {
     ctx.fillStyle = "#e84393"; ctx.fillText("Meo~", x, fy - 18 * u - k * 10);
     ctx.globalAlpha = 1; ctx.textBaseline = "alphabetic";
   }
+}
+
+// ===== Trạm cứu hộ mèo: chị Mai đứng sau chuồng gỗ có mèo con, nhận nuôi ở đây =====
+const ADOPTER_LOOK = { hair: 3, hairColor: 1, skin: 0, shirt: 5, bottom: 1, bottomColor: 3 };
+function drawAdopter(a, t) {
+  const { x, y } = a, feet = y - 30, bob = Math.sin(t / 600) * 1.5;
+  // Chị Mai + băng đô tai mèo
+  drawAvatar(ctx, ADOPTER_LOOK, x - 30, feet + bob, 3, "down", 0);
+  const top = feet - 84 + bob;
+  for (const ex of [x - 44, x - 16]) {
+    ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.moveTo(ex - 7, top + 10); ctx.lineTo(ex, top - 6); ctx.lineTo(ex + 7, top + 10); ctx.fill();
+    ctx.fillStyle = "#fd79a8"; ctx.beginPath(); ctx.moveTo(ex - 3, top + 8); ctx.lineTo(ex, top); ctx.lineTo(ex + 3, top + 8); ctx.fill();
+  }
+  // Chuồng gỗ thấp, nệm hồng, mèo con bên trong
+  ctx.fillStyle = "rgba(0,0,0,.2)"; ctx.beginPath(); ctx.ellipse(x + 10, y + 2, 66, 10, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fab1a0"; ctx.fillRect(x - 54, y - 26, 128, 22);
+  drawCat({ color: "orange", sleep: true }, x - 20, y - 6, false, 1, t, 2, false);
+  drawCat({ color: "white" }, x + 20, y - 6, false, -1, t, 2, true);
+  drawCat({ color: "gray" }, x + 50, y - 6, Math.sin(t / 900) > 0.6, 1, t, 2, false);
+  ctx.fillStyle = "#a1887f";
+  for (let i = 0; i <= 8; i++) ctx.fillRect(x - 58 + i * 16, y - 34, 5, 34);
+  ctx.fillStyle = "#8d6e63"; ctx.fillRect(x - 60, y - 34, 136, 6); ctx.fillRect(x - 60, y - 14, 136, 5);
+}
+function drawAdopterLabel(a) {
+  const { x, y } = a, top = y - 30 - 84;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#e84393"; roundRect(x - 66, top - 52, 132, 24, 8); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "bold 13px system-ui"; ctx.textBaseline = "middle"; ctx.fillText("🐾 NHẬN NUÔI MÈO", x, top - 40); ctx.textBaseline = "alphabetic";
+  ctx.font = "bold 13px system-ui"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.7)";
+  ctx.strokeText(a.name, x - 10, top - 10); ctx.fillStyle = "#ffeaa7"; ctx.fillText(a.name, x - 10, top - 10);
 }

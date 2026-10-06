@@ -10,6 +10,7 @@
 <body>
 <canvas id="game"></canvas>
 <div id="fade"></div>
+<canvas id="sailScene" class="hidden"></canvas>
 
 <!-- Màn hình nhập tên -->
 <div id="login" class="overlay">
@@ -47,6 +48,27 @@
 <div id="actionBar" class="hidden"></div>
 <button id="fsBtn" class="hidden" title="Toàn màn hình">⛶</button>
 
+<!-- Bảng thành tích đầy đủ -->
+<div id="lbModal" class="overlay hidden">
+  <div class="card lb-card">
+    <h2>🏆 Bảng Vàng</h2>
+    <p class="lb-note">🎴 Về nhất Tiến Lên +3 · ⭕ Thắng Caro +3 · 💥 Chặt heo +2 · ♠️ Thắng cái Xì Dách +1 · 🧠 Đố vui đúng +1</p>
+    <div id="lbTable"></div>
+    <button type="button" id="lbClose">Đóng</button>
+  </div>
+</div>
+
+<!-- Chọn mèo ở Trạm cứu hộ -->
+<div id="adoptModal" class="overlay hidden">
+  <div class="card adopt-card">
+    <h2>🐾 Trạm cứu hộ mèo</h2>
+    <p>Chọn một bé mèo, bé sẽ đi theo bạn khắp nơi!</p>
+    <div id="adoptList"></div>
+    <button type="button" id="adoptRelease" class="link-btn hidden">Trả bé mèo về trạm</button>
+    <button type="button" id="adoptClose">Đóng</button>
+  </div>
+</div>
+
 <!-- Nhắc xoay ngang điện thoại -->
 <div id="rotateHint" class="overlay hidden">
   <div class="card">
@@ -62,7 +84,8 @@
 <!-- Chat -->
 <div id="chat" class="hidden">
   <div id="chatLog"></div>
-  <form id="chatForm"><input id="chatInput" maxlength="120" placeholder="Nhắn tin... (Enter)" autocomplete="off"></form>
+  <div id="quickMenu" class="hidden"></div>
+  <form id="chatForm"><button type="button" id="quickBtn" title="Câu nói nhanh">💬</button><input id="chatInput" maxlength="120" placeholder="Nhắn tin... (Enter)" autocomplete="off"></form>
 </div>
 
 <!-- Phòng chơi: bàn 6 ghế dùng chung cho Bầu Cua, Bài Cào, Xì Dách -->
@@ -90,6 +113,8 @@
 <script src="sfx.js"></script>
 <script src="client.js"></script>
 <script src="cafe.js"></script>
+<script src="beach.js"></script>
+<script src="ship.js"></script>
 <script src="npc.js"></script>
 </body>
 </html>
