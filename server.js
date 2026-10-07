@@ -1246,10 +1246,13 @@ Tin nhắn người chơi có dạng "Tên: nội dung"; trả lời người v�
 Hãy dùng những điều đã biết về người chơi (bên dưới) để trả lời cho đúng và thân thiết, nhưng đừng kể lể hết ra khi không ai hỏi.
 Trả về JSON: "reply" là câu trả lời; "remember" là điều MỚI người chơi vừa kể về chính họ đáng ghi nhớ lâu dài (sở thích, công việc, sinh nhật, thú cưng, bạn bè...), viết ngắn ở ngôi thứ ba, ví dụ "thích ăn phở"; không có thì để chuỗi rỗng. Không bàn chuyện người lớn, chính trị; gặp thì gạt đi nhẹ nhàng.`;
 const zoroTalk = { busy: false, history: [], readyAt: 0 };
-// Điều Zoro biết: file zoro-biet.txt do chủ game tự viết (đọc lại mỗi lần hỏi, sửa là có hiệu lực ngay, dòng bắt đầu bằng # bị bỏ qua)
+// Điều Zoro biết: file zoro-biet.txt do chủ game tự viết (đọc lại mỗi lần hỏi, sửa là có hiệu lực ngay, dòng bắt đầu bằng # bị bỏ qua).
+// Khi deploy (file không được đưa lên GitHub) thì dán nội dung file vào biến môi trường ZORO_BIET.
 const ZORO_KNOW_FILE = __dirname + "/zoro-biet.txt";
 function zoroKnowledge() {
-  try { return fs.readFileSync(ZORO_KNOW_FILE, "utf8").split("\n").filter((l) => !l.trim().startsWith("#")).join("\n").trim().slice(0, 6000); } catch (e) { return ""; }
+  let text = process.env.ZORO_BIET || "";
+  try { text = fs.readFileSync(ZORO_KNOW_FILE, "utf8"); } catch (e) {}
+  return text.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n").trim().slice(0, 6000);
 }
 // Điều Zoro tự nhớ về từng người chơi (theo tên) khi họ kể, lưu trong zoro-nho.json
 const ZORO_MEM_FILE = __dirname + "/zoro-nho.json", ZORO_MEM_MAX = 15;

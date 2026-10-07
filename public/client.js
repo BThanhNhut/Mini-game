@@ -499,7 +499,8 @@ function draw() {
   const mine = players[me];
   const shortLandscape = W >= H && innerHeight < 520;
   if (mine && (W < H || shortLandscape)) {
-    scale = W < H ? Math.min(H / MAP.h, W / 460) : Math.max(scale, H / 680);
+    // Ngang: phủ kín màn hình (không còn dải đen hai bên), khung nhìn chạy theo nhân vật
+    scale = W < H ? Math.min(H / MAP.h, W / 460) : Math.max(W / MAP.w, H / MAP.h, H / 680);
     const camX = mine.rx * scale, camY = mine.ry * scale;
     offX = MAP.w * scale > W ? Math.min(0, Math.max(W - MAP.w * scale, W / 2 - camX)) : (W - MAP.w * scale) / 2;
     offY = MAP.h * scale > H ? Math.min(0, Math.max(H - MAP.h * scale, H / 2 - camY)) : (H - MAP.h * scale) / 2;
@@ -1135,6 +1136,7 @@ function checkOrientation() {
   const portrait = innerHeight > innerWidth;
   $("rotateHint").classList.toggle("hidden", !(me && isTouch && portrait && !skipRotate));
   $("fsBtn").classList.toggle("hidden", !(me && isTouch && canFullscreen && !document.fullscreenElement));
+  checkInstallHint();
 }
 async function goLandscape() {
   try {
@@ -1151,6 +1153,19 @@ $("rotateSkip").onclick = () => {
   skipRotate = true;
   try { sessionStorage.setItem("skipRotate", "1"); } catch (e) {}
   checkOrientation();
+};
+// iPhone/iPad Safari: chỉ chơi toàn màn hình được khi thêm game vào Màn hình chính → nhắc 1 lần
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isApp = navigator.standalone || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+let installDismissed = false;
+try { installDismissed = localStorage.getItem("installHint") === "off"; } catch (e) {}
+function checkInstallHint() {
+  $("installHint").classList.toggle("hidden", !(me && isIOS && !isApp && !installDismissed));
+}
+$("installClose").onclick = () => {
+  installDismissed = true;
+  try { localStorage.setItem("installHint", "off"); } catch (e) {}
+  checkInstallHint();
 };
 addEventListener("resize", checkOrientation);
 document.addEventListener("fullscreenchange", checkOrientation);

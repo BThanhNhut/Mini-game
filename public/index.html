@@ -2,7 +2,14 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Game Sảnh">
+<meta name="theme-color" content="#1e272e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Game Sảnh</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
 <link rel="stylesheet" href="style.css">
@@ -47,6 +54,7 @@
 <button id="micBtn" class="hidden">🎤 Bật mic</button>
 <div id="actionBar" class="hidden"></div>
 <button id="fsBtn" class="hidden" title="Toàn màn hình">⛶</button>
+<div id="installHint" class="hidden">📲 Muốn chơi toàn màn hình: bấm <b>Chia sẻ</b> <span class="ios-share">⬆︎</span> → <b>Thêm vào MH chính</b>, rồi mở game từ biểu tượng 🎮 <button id="installClose" title="Đóng">✕</button></div>
 
 <!-- Bảng thành tích đầy đủ -->
 <div id="lbModal" class="overlay hidden">
